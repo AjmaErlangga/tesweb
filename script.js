@@ -12,7 +12,13 @@ let currentTranslateX = 0, currentTranslateY = 0;
 let historyStack = [], redoStack = [];
 let contextMenuData = { target: null };
 let totalPages = 0, currentPage = 1;
+
+// Global var untuk Timestamp
 let globalTimestampLeft = null, globalTimestampTop = null; 
+// Global var untuk Label (NEW)
+let globalLabelLeft = null, globalLabelTop = null;
+let activeLabelType = null; // 'RANDOM', 'QC'
+
 let signatureImageDataURLs = []; 
 let showJiNotify = true; 
 let dragGhostElement = null; 
@@ -442,7 +448,7 @@ btnPanMode.addEventListener('click', () => {
 });
 pdfMain.addEventListener('mousedown', (e) => {
   if (!isPanMode) return;
-  if (e.target.closest('.stamp-container, .shape-element, .text-element, .resize-handle, .timestamp-preview')) {
+  if (e.target.closest('.stamp-container, .shape-element, .text-element, .resize-handle, .timestamp-preview, .label-preview')) {
       return;
   }
   pdfMain.style.cursor = 'grabbing';
@@ -470,7 +476,7 @@ function saveHistory() {
   const state = [];
   document.querySelectorAll('.preview-container').forEach(container => {
     const interactiveElements = Array.from(container.children)
-      .filter(child => child.tagName.toLowerCase() !== 'canvas' && !child.classList.contains('timestamp-preview'))
+      .filter(child => child.tagName.toLowerCase() !== 'canvas' && !child.classList.contains('timestamp-preview') && !child.classList.contains('label-preview'))
       .map(child => child.outerHTML)
       .join('');
     state.push({ id: container.id, interactive: interactiveElements });
@@ -485,9 +491,13 @@ function restoreHistory(state) {
     if (container) {
       const canvas = container.querySelector('canvas');
       const timestamp = container.querySelector('.timestamp-preview');
+      const label = container.querySelector('.label-preview');
+
       container.innerHTML = "";
       if (canvas) container.appendChild(canvas);
       if (timestamp) container.appendChild(timestamp);
+      if (label) container.appendChild(label);
+      
       container.insertAdjacentHTML('beforeend', item.interactive);
     }
   });
@@ -499,15 +509,24 @@ function rebindInteractiveEvents() {
     if(timestampEl) {
       timestampEl.addEventListener('mousedown', (e) => {
         if (isPanMode) { e.stopPropagation(); return; }
-        startDrag(e, timestampEl, container, true); 
+        startDrag(e, timestampEl, container, true, false); 
       });
     }
+    // Rebind label event
+    const labelEl = container.querySelector('.label-preview');
+    if(labelEl) {
+      labelEl.addEventListener('mousedown', (e) => {
+        if (isPanMode) { e.stopPropagation(); return; }
+        startDrag(e, labelEl, container, false, true); 
+      });
+    }
+
     container.querySelectorAll('.stamp-container, .text-element, .shape-element').forEach(element => {
       element.addEventListener('mousedown', (ev) => {
         if (ev.target.classList.contains('resize-handle') || ev.target.classList.contains('stamp-delete-button')) return;
         if (isPanMode) { ev.stopPropagation(); return; }
         selectStamp(element);
-        startDrag(ev, element, container, false);
+        startDrag(ev, element, container, false, false);
       });
       element.addEventListener('click', (ev) => {
         if (ev.target.classList.contains('stamp-delete-button')) return;
@@ -580,17 +599,25 @@ window.clearAllFiles = () => {
   currentPage = 1;
   currentPageInput.value = 1;
   totalPagesSpan.textContent = 1;
+  
+  // Reset Timestamp
   globalTimestampLeft = null; 
   globalTimestampTop = null;
+  document.querySelectorAll('.timestamp-btn').forEach(btn => btn.classList.remove('active-timestamp'));
+  userSelect.value = '0';
+
+  // Reset Label
+  globalLabelLeft = null;
+  globalLabelTop = null;
+  activeLabelType = null;
+  document.querySelectorAll('.label-btn').forEach(btn => btn.classList.remove('active-label'));
+
   updateUndoRedoButtons();
   
   dropzone.classList.remove('hidden');
   previewSection.classList.add('hidden');
   document.querySelector('.pdf-controls').style.display = 'none';
   
-  document.querySelectorAll('.timestamp-btn').forEach(btn => btn.classList.remove('active-timestamp'));
-  userSelect.value = '0';
-
   jiChecklistBox.classList.add('hidden');
   document.querySelectorAll('.modern-checkbox, .toggle-input').forEach(cb => cb.checked = false);
   // Reset posisi checklist box
@@ -687,7 +714,10 @@ async function renderPDF(arrayBuffer) {
   currentTranslateY = 0;
   pdfPagesWrapper.style.transform = `translate(0px, 0px) scale(1)`;
   zoomInput.value = 100;
+  
   updateTimestampPreview();
+  updateLabelPreview(); // Init Label Preview if any active
+
   historyStack = []; 
   redoStack = [];
   saveHistory();
@@ -714,6 +744,8 @@ function onScrollUpdatePage() {
     currentPageInput.value = currentPage;
   }
 }
+
+// --- LOGIKA TIMESTAMP ---
 function formatTimestamp() {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -747,7 +779,7 @@ function updateTimestampPreview() {
 
       timestampEl.addEventListener('mousedown', (e) => {
         if (isPanMode) { e.stopPropagation(); return; }
-        startDrag(e, timestampEl, container, true);
+        startDrag(e, timestampEl, container, true, false);
       });
     }
   });
@@ -774,6 +806,67 @@ document.getElementById('timestamp-controls').addEventListener('click', (e) => {
     }
     
     userSelect.dispatchEvent(new Event('change'));
+});
+
+// --- LOGIKA LABEL QC / RANDOM (BARU) ---
+function updateLabelPreview() {
+  const type = activeLabelType;
+
+  document.querySelectorAll('.preview-container').forEach(container => {
+    // Hapus label yang ada
+    const existingLabel = container.querySelector('.label-preview');
+    if (existingLabel) existingLabel.remove();
+
+    if (type && type !== 'NONE') {
+      const labelEl = document.createElement('div');
+      labelEl.className = 'label-preview';
+      
+      const img = document.createElement('img');
+      if (type === 'RANDOM') {
+        img.src = 'https://ajmaerlangga.github.io/image/RANDOM_CHECK.png';
+      } else if (type === 'QC') {
+        img.src = 'https://ajmaerlangga.github.io/image/QC_100.png';
+      }
+      labelEl.appendChild(img);
+
+      // Set Posisi
+      if (globalLabelLeft && globalLabelTop) {
+        labelEl.style.left = globalLabelLeft;
+        labelEl.style.top = globalLabelTop;
+      } else {
+        // Posisi default (kanan atas)
+        labelEl.style.left = (container.clientWidth - 120) + 'px';
+        labelEl.style.top = '20px';
+      }
+
+      container.appendChild(labelEl);
+
+      // Drag Event
+      labelEl.addEventListener('mousedown', (e) => {
+         if (isPanMode) { e.stopPropagation(); return; }
+         startDrag(e, labelEl, container, false, true); // isLabel = true
+      });
+    }
+  });
+}
+
+document.getElementById('label-controls').addEventListener('click', (e) => {
+  const target = e.target.closest('.label-btn');
+  if (!target) return;
+  const type = target.dataset.type;
+  if (!type) return;
+
+  document.querySelectorAll('.label-btn').forEach(btn => btn.classList.remove('active-label'));
+  
+  if (type === 'NONE') {
+    activeLabelType = null;
+    target.classList.add('active-label');
+  } else {
+    activeLabelType = type;
+    target.classList.add('active-label');
+  }
+
+  updateLabelPreview();
 });
 
 window.triggerSignatureUpload = () => {
@@ -948,7 +1041,7 @@ function createStampElement(dropX, dropY, container, scale) {
     if (e.target.classList.contains('resize-handle') || e.target.classList.contains('stamp-delete-button')) return;
     if (isPanMode) { e.stopPropagation(); return; }
     selectStamp(stampContainer);
-    startDrag(e, stampContainer, container, false);
+    startDrag(e, stampContainer, container, false, false);
   });
   stampContainer.addEventListener('click', (e) => {
     if (e.target.classList.contains('stamp-delete-button')) return;
@@ -1034,7 +1127,7 @@ function createTextInputAt(container, x, y) {
     if (e.target.classList.contains('resize-handle')) return;
     if (isPanMode) { e.stopPropagation(); return; }
     selectStamp(textElement);
-    startDrag(e, textElement, container, false);
+    startDrag(e, textElement, container, false, false);
   });
   textElement.addEventListener('click', () => selectStamp(textElement));
   textElement.addEventListener('dblclick', (e) => {
@@ -1080,7 +1173,7 @@ fontColorInput.addEventListener('input', () => {
   }
 });
 
-function startDrag(e, element, container, isTimestamp = false) {
+function startDrag(e, element, container, isTimestamp = false, isLabel = false) {
   e.preventDefault();
   let isDragging = true;
   const elementRect = element.getBoundingClientRect();
@@ -1095,6 +1188,7 @@ function startDrag(e, element, container, isTimestamp = false) {
     let newX = (eMove.clientX - containerRect.left) / currentZoom - offsetX;
     let newY = (eMove.clientY - containerRect.top) / currentZoom - offsetY;
     
+    // Boundary check
     newX = Math.max(0, Math.min(newX, container.clientWidth - element.offsetWidth));
     newY = Math.max(0, Math.min(newY, container.clientHeight - element.offsetHeight));
     
@@ -1111,16 +1205,31 @@ function startDrag(e, element, container, isTimestamp = false) {
           }
       });
     }
+
+    if (isLabel) {
+      const newLeft = newX + "px";
+      const newTop = newY + "px";
+      document.querySelectorAll('.label-preview').forEach(lbl => {
+          if (lbl !== element) {
+            lbl.style.left = newLeft;
+            lbl.style.top = newTop;
+          }
+      });
+    }
   };
   const onMouseUp = () => {
     isDragging = false;
     document.removeEventListener('mousemove', onMouseMove);
     document.removeEventListener('mouseup', onMouseUp);
-    if (!isTimestamp) { 
-      saveHistory();
+    
+    if (isTimestamp) {
+       globalTimestampLeft = element.style.left;
+       globalTimestampTop = element.style.top;
+    } else if (isLabel) {
+       globalLabelLeft = element.style.left;
+       globalLabelTop = element.style.top;
     } else {
-      globalTimestampLeft = element.style.left;
-      globalTimestampTop = element.style.top;
+       saveHistory();
     }
   };
   document.addEventListener('mousemove', onMouseMove);
@@ -1180,7 +1289,7 @@ document.addEventListener('mousedown', (e) => {
   if (e.target.classList.contains('resize-handle')) {
     startResize(e, e.target.parentElement);
   }
-  if (!e.target.closest('.stamp-container, .shape-element, .text-element, aside, .pdf-controls, .timestamp-preview')) {
+  if (!e.target.closest('.stamp-container, .shape-element, .text-element, aside, .pdf-controls, .timestamp-preview, .label-preview')) {
     if (selectedStamp) {
       selectedStamp.classList.remove('stamp-selected');
       selectedStamp = null;
@@ -1387,7 +1496,7 @@ function pasteCopiedElement(container, posX, posY, useCopiedCoordinates) {
       if (ev.target.classList.contains('resize-handle') || ev.target.classList.contains('stamp-delete-button')) return;
       if (isPanMode) { ev.stopPropagation(); return; }
       selectStamp(newElement);
-      startDrag(ev, newElement, container, false);
+      startDrag(ev, newElement, container, false, false);
     });
     newElement.addEventListener('click', (ev) => {
        if (ev.target.classList.contains('stamp-delete-button')) return;
@@ -1436,7 +1545,7 @@ shapeButtons.forEach(btn => {
 
 pdfMain.addEventListener('mousedown', (e) => {
   if (!isAddingShape || isPanMode) return;
-  if (e.target.closest('aside, .pdf-controls, #custom-context-menu, .stamp-container, .text-element, .shape-element, .timestamp-preview')) return;
+  if (e.target.closest('aside, .pdf-controls, #custom-context-menu, .stamp-container, .text-element, .shape-element, .timestamp-preview, .label-preview')) return;
   
   const container = e.target.closest('.preview-container');
   if (!container) return;
@@ -1520,7 +1629,7 @@ pdfMain.addEventListener('mousedown', (e) => {
       if (ev.target.classList.contains('resize-handle') || ev.target.classList.contains('stamp-delete-button')) return;
       if (isPanMode) { ev.stopPropagation(); return; }
       selectStamp(finalizedShape);
-      startDrag(ev, finalizedShape, container, false);
+      startDrag(ev, finalizedShape, container, false, false);
     });
     
     const resizeHandle = document.createElement('div');
@@ -1623,6 +1732,36 @@ async function executePdfDownload() {
         boldItalic: await pdfDocLib.embedFont(fontMapping[family].boldItalic)
       };
     }
+
+    // --- EMBED LABEL IMAGE IF ACTIVE ---
+    let labelImageEmbed = null;
+    let labelWidth = 0;
+    let labelHeight = 0;
+
+    if (activeLabelType && activeLabelType !== 'NONE') {
+      try {
+        const imgUrl = (activeLabelType === 'RANDOM') 
+          ? 'https://ajmaerlangga.github.io/image/RANDOM_CHECK.png' 
+          : 'https://ajmaerlangga.github.io/image/QC_100.png';
+        
+        // Fetch gambar sebagai array buffer
+        const response = await fetch(imgUrl);
+        const imageBuffer = await response.arrayBuffer();
+        
+        // Embed PNG
+        labelImageEmbed = await pdfDocLib.embedPng(imageBuffer);
+        
+        // Dapatkan dimensi asli untuk rasio aspek jika diperlukan, 
+        // tapi kita akan gunakan ukuran dari elemen DOM
+        const dims = labelImageEmbed.scale(1);
+        labelWidth = dims.width;
+        labelHeight = dims.height;
+
+      } catch (err) {
+        console.error("Gagal memuat gambar label:", err);
+        showToast("Gagal memuat gambar Label QC/Random.", "error");
+      }
+    }
     
     const containers = document.querySelectorAll(".preview-container");
     for (const container of containers) {
@@ -1648,8 +1787,15 @@ async function executePdfDownload() {
         } else if (stampImgSrc.startsWith("data:image/jpeg")) {
           stampEmbed = await pdfDocLib.embedJpg(stampImgSrc);
         } else { 
-          showToast("Format gambar TTD tidak didukung.", "error"); 
-          continue; 
+          // Jika gambar dari URL external (misal copy paste)
+          try {
+             const resp = await fetch(stampImgSrc);
+             const buf = await resp.arrayBuffer();
+             stampEmbed = await pdfDocLib.embedPng(buf);
+          } catch(e) {
+             showToast("Format gambar TTD tidak didukung.", "error"); 
+             continue; 
+          }
         }
         pdfPage.drawImage(stampEmbed, { x: pdfX, y: pdfY, width: pdfWidth, height: pdfHeight });
       }
@@ -1768,6 +1914,7 @@ async function executePdfDownload() {
         }
       }
       
+      // DRAW TIMESTAMP
       const timestamps = container.querySelectorAll(".timestamp-preview");
       timestamps.forEach(ts => {
         const tsX = parseFloat(ts.style.left) || 0;
@@ -1782,6 +1929,30 @@ async function executePdfDownload() {
           font: embeddedFontMapping["Helvetica"].regular,
           color: PDFLib.rgb(0, 0, 0)
         });
+      });
+
+      // DRAW LABEL (BARU)
+      const labels = container.querySelectorAll(".label-preview");
+      labels.forEach(lbl => {
+        if (labelImageEmbed) {
+          const lblX = parseFloat(lbl.style.left) || 0;
+          const lblY = parseFloat(lbl.style.top) || 0;
+          const lblW = lbl.offsetWidth;
+          const lblH = lbl.offsetHeight;
+
+          const pdfX = lblX / scale;
+          const pdfW = lblW / scale;
+          const pdfH = lblH / scale;
+          // Koordinat Y di PDF dimulai dari bawah, di HTML dari atas
+          const pdfY = originalHeight - (lblY + lblH) / scale;
+
+          pdfPage.drawImage(labelImageEmbed, {
+            x: pdfX,
+            y: pdfY,
+            width: pdfW,
+            height: pdfH
+          });
+        }
       });
     }
     
