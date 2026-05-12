@@ -77,9 +77,9 @@
 
         <!-- Preview Gambar -->
         <div id="previewContainer" class="hidden mb-6">
-            <p class="font-semibold text-sm mb-2 text-gray-700">Preview Dokumen (Kontras Tinggi):</p>
+            <p class="font-semibold text-sm mb-2 text-gray-700">Preview Dokumen (Mode Fotokopi Jelas):</p>
             <img id="imagePreview" class="max-w-full h-auto rounded border-2 border-blue-200 shadow-sm" alt="Preview Dokumen" />
-            <p id="cropStatusLabel" class="text-xs text-green-600 font-medium mt-1 hidden">✓ Kertas berhasil diratakan dan kontras ditingkatkan agar teks jelas.</p>
+            <p id="cropStatusLabel" class="text-xs text-green-600 font-medium mt-1 hidden">✓ Kertas diratakan dan dikonversi ke hitam-putih pekat.</p>
         </div>
 
         <!-- Status Loading Pemrosesan -->
@@ -103,8 +103,8 @@
             </div>
 
             <details class="text-xs text-gray-500 mt-4">
-                <summary class="cursor-pointer font-medium hover:text-gray-700">Lihat seluruh teks yang terbaca</summary>
-                <div id="rawText" class="mt-2 p-2 bg-white border rounded h-32 overflow-y-auto whitespace-pre-wrap"></div>
+                <summary class="cursor-pointer font-medium hover:text-gray-700">Lihat seluruh teks yang terbaca (Debugging)</summary>
+                <div id="rawText" class="mt-2 p-2 bg-white border rounded h-32 overflow-y-auto whitespace-pre-wrap font-mono text-xs"></div>
             </details>
         </div>
 
@@ -231,8 +231,7 @@
             imgPreview.src = originalBase64;
             document.getElementById('previewContainer').classList.remove('hidden');
             
-            // Teks status diubah agar sesuai dengan urutan proses baru
-            statusText.innerText = "Meninggikan kontras dokumen agar teks mudah dibaca...";
+            statusText.innerText = "Menerapkan Adaptive Thresholding (Mode Fotokopi)...";
             await new Promise(r => setTimeout(r, 100)); 
             
             let finalImageBase64 = originalBase64;
@@ -242,7 +241,6 @@
                     const enhancedResult = await processAndEnhanceImage(originalBase64);
                     if (enhancedResult.success) {
                         finalImageBase64 = enhancedResult.base64;
-                        // Gambar kontras tinggi langsung ditampilkan ke pengguna
                         imgPreview.src = finalImageBase64;
                         document.getElementById('cropStatusLabel').classList.remove('hidden');
                     }
@@ -253,20 +251,19 @@
             
             currentImageBase64 = finalImageBase64;
 
-            // Memulai OCR pada gambar yang sudah ditingkatkan kontrasnya
             statusText.innerHTML = "Memindai teks pada dokumen (OCR)...<br><span class='text-xs font-normal'>Mohon tunggu beberapa detik.</span>";
             await performOCR(currentImageBase64);
             
             loadingStatus.classList.add('hidden');
         }
 
-        // --- Fungsi Auto Crop & Peninggi Kontras (OpenCV) ---
+        // --- Fungsi Auto Crop & Binarisasi (Adaptive Threshold) OpenCV ---
 
         function processAndEnhanceImage(imageSrc) {
             return new Promise((resolve, reject) => {
                 let imgElement = new Image();
                 imgElement.onload = function() {
-                    let src = null, dst = null, contours = null, hierarchy = null, M_dilate = null, workingMat = null, sharpenKernel = null;
+                    let src = null, dst = null, contours = null, hierarchy = null, M_dilate = null, workingMat = null;
                     try {
                         src = cv.imread(imgElement);
                         dst = new cv.Mat();
@@ -349,28 +346,23 @@
                             srcTri.delete(); dstTri.delete(); M.delete();
                             cropSuccess = true;
                         } else {
-                            // Jika gagal mendeteksi kotak kertas, gunakan gambar asli seluruhnya
                             src.copyTo(workingMat);
                         }
 
                         // =========================================================
-                        // 2. TAHAP PENINGGIAN KONTRAS (Diterapkan sebelum OCR)
+                        // 2. TAHAP BINARISASI ADAPTIF (Standar Scanner OCR)
                         // =========================================================
                         
-                        // Ubah ke warna Grayscale (Hitam-Putih ala scanner) 
-                        // Ini sangat disukai oleh mesin OCR karena membuang gangguan bayangan warna
+                        // Ubah ke Grayscale
                         cv.cvtColor(workingMat, workingMat, cv.COLOR_RGBA2GRAY, 0);
 
-                        // Tinggikan kontras secara ekstrem (Alpha: 1.8 = 180% kontras, Beta: 10 = nambah terang sedikit)
-                        cv.convertScaleAbs(workingMat, workingMat, 1.8, 10);
+                        // Tambahkan sedikit blur untuk menghaluskan noise atau kotoran debu
+                        let ksizeBlur = new cv.Size(3, 3);
+                        cv.GaussianBlur(workingMat, workingMat, ksizeBlur, 0, 0, cv.BORDER_DEFAULT);
 
-                        // Beri filter pertajam ekstra (Sharpen) agar tinta lebih menonjol
-                        sharpenKernel = cv.matFromArray(3, 3, cv.CV_32F, [
-                            0, -1, 0,
-                            -1, 5, -1,
-                            0, -1, 0
-                        ]);
-                        cv.filter2D(workingMat, workingMat, cv.CV_8U, sharpenKernel);
+                        // Adaptive Threshold: Sangat handal membaca area teks walau tertutup bayangan/cahaya
+                        // Parameter 21 (block size) dan 10 (konstanta C) sangat stabil untuk kertas putih tinta hitam
+                        cv.adaptiveThreshold(workingMat, workingMat, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 21, 10);
 
                         // =========================================================
 
@@ -383,7 +375,6 @@
                         src.delete(); dst.delete(); contours.delete(); hierarchy.delete();
                         if (M_dilate) M_dilate.delete();
                         if (workingMat) workingMat.delete();
-                        if (sharpenKernel) sharpenKernel.delete();
                         
                         resolve({ success: true, base64: enhancedBase64, isCropped: cropSuccess });
                     } catch (e) {
@@ -391,7 +382,6 @@
                         if(contours) contours.delete(); if(hierarchy) hierarchy.delete();
                         if(M_dilate) M_dilate.delete();
                         if(workingMat) workingMat.delete();
-                        if(sharpenKernel) sharpenKernel.delete();
                         reject(e);
                     }
                 };
@@ -423,9 +413,12 @@
         }
 
         function extractData(text) {
-            const orderRegex = /Order\s*#?\s*[:\-]?\s*([A-Za-z0-9\-]+)/i;
+            // Regex Diperbarui: Menoleransi kesalahan baca Tesseract yang sering terjadi
+            // Contoh toleransi: "Order" terbaca "0rder", atau "Shipment" terbaca "Shiprnent"
+            const orderRegex = /(?:Order|0rder)\s*#?\s*[:\-]?\s*([A-Za-z0-9\-]+)/i;
             const orderMatch = text.match(orderRegex);
-            const dateRegex = /Shipment\s*Date\s*[:\-]?\s*([0-9A-Za-z\/]+)/i;
+            
+            const dateRegex = /(?:Shipment|Shiprnent|Shtptnent)\s*(?:Date|Dato)\s*[:\-]?\s*([0-9A-Za-z\/]+)/i;
             const dateMatch = text.match(dateRegex);
 
             document.getElementById('orderNumberInput').value = (orderMatch && orderMatch[1]) ? orderMatch[1].trim() : "Tidak ditemukan";
