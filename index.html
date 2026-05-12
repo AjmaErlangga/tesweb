@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Menggunakan Tesseract.js untuk OCR -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-    <!-- Menggunakan OpenCV.js untuk Auto Crop / Edge Detection -->
+    <!-- Menggunakan OpenCV.js untuk Auto Crop / Edge Detection / Contrast -->
     <script async src="https://docs.opencv.org/4.8.0/opencv.js" type="text/javascript"></script>
     
     <style>
@@ -77,9 +77,9 @@
 
         <!-- Preview Gambar -->
         <div id="previewContainer" class="hidden mb-6">
-            <p class="font-semibold text-sm mb-2 text-gray-700">Hasil Scan (Auto Crop & Sharpen):</p>
+            <p class="font-semibold text-sm mb-2 text-gray-700">Preview Dokumen (Kontras Tinggi):</p>
             <img id="imagePreview" class="max-w-full h-auto rounded border-2 border-blue-200 shadow-sm" alt="Preview Dokumen" />
-            <p id="cropStatusLabel" class="text-xs text-green-600 font-medium mt-1 hidden">✓ Kertas berhasil terdeteksi dan dipertajam.</p>
+            <p id="cropStatusLabel" class="text-xs text-green-600 font-medium mt-1 hidden">✓ Kertas berhasil diratakan dan kontras ditingkatkan agar teks jelas.</p>
         </div>
 
         <!-- Status Loading Pemrosesan -->
@@ -167,12 +167,9 @@
             const video = document.getElementById('cameraStream');
             const canvas = document.getElementById('canvas');
             
-            // Ambil resolusi asli video dari kamera
             let vw = video.videoWidth;
             let vh = video.videoHeight;
             
-            // PERBAIKAN BLUR: Naikkan batas maksimal ke 2560px (Quad HD)
-            // Ini cukup besar untuk mempertahankan ketajaman teks tapi masih aman dari memori crash
             const MAX_RES = 2560; 
             if (vw > MAX_RES || vh > MAX_RES) {
                 const ratio = Math.min(MAX_RES / vw, MAX_RES / vh);
@@ -180,20 +177,15 @@
                 vh = Math.round(vh * ratio);
             }
             
-            // Fallback aman jika resolusi videoWidth kosong di awal
             canvas.width = vw || 1280;
             canvas.height = vh || 720;
             
             const ctx = canvas.getContext('2d');
             
-            // Isi background putih untuk menghindari background transparan yang jadi hitam
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Gambar video ke canvas yang ukurannya sudah disesuaikan
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // PERBAIKAN KUALITAS: Setel JPEG Quality ke 1.0 (100% tanpa kompresi blur)
             const base64Img = canvas.toDataURL('image/jpeg', 1.0);
             originalFileExtension = 'jpg';
             
@@ -227,7 +219,7 @@
             document.getElementById('rawText').innerText = '';
         }
 
-        // --- Alur Pemrosesan Utama (Crop -> OCR) ---
+        // --- Alur Pemrosesan Utama (Tingkatkan Kontras -> OCR) ---
 
         async function processImageFlow(originalBase64) {
             const loadingStatus = document.getElementById('loadingStatus');
@@ -239,43 +231,47 @@
             imgPreview.src = originalBase64;
             document.getElementById('previewContainer').classList.remove('hidden');
             
-            statusText.innerText = "Mendeteksi, meratakan kertas, dan mempertajam teks...";
+            // Teks status diubah agar sesuai dengan urutan proses baru
+            statusText.innerText = "Meninggikan kontras dokumen agar teks mudah dibaca...";
             await new Promise(r => setTimeout(r, 100)); 
             
             let finalImageBase64 = originalBase64;
 
             if (isCvReady) {
                 try {
-                    const cropResult = await autoCropImage(originalBase64);
-                    if (cropResult.success) {
-                        finalImageBase64 = cropResult.base64;
+                    const enhancedResult = await processAndEnhanceImage(originalBase64);
+                    if (enhancedResult.success) {
+                        finalImageBase64 = enhancedResult.base64;
+                        // Gambar kontras tinggi langsung ditampilkan ke pengguna
                         imgPreview.src = finalImageBase64;
                         document.getElementById('cropStatusLabel').classList.remove('hidden');
                     }
                 } catch (e) {
-                    console.warn("Auto crop gagal, menggunakan gambar asli.", e);
+                    console.warn("Enhancement gagal, menggunakan gambar asli.", e);
                 }
             }
             
             currentImageBase64 = finalImageBase64;
 
-            statusText.innerHTML = "Memindai teks pada dokumen...<br><span class='text-xs font-normal'>Mohon tunggu beberapa detik.</span>";
+            // Memulai OCR pada gambar yang sudah ditingkatkan kontrasnya
+            statusText.innerHTML = "Memindai teks pada dokumen (OCR)...<br><span class='text-xs font-normal'>Mohon tunggu beberapa detik.</span>";
             await performOCR(currentImageBase64);
             
             loadingStatus.classList.add('hidden');
         }
 
-        // --- Fungsi Auto Crop & Sharpen OpenCV ---
+        // --- Fungsi Auto Crop & Peninggi Kontras (OpenCV) ---
 
-        function autoCropImage(imageSrc) {
+        function processAndEnhanceImage(imageSrc) {
             return new Promise((resolve, reject) => {
                 let imgElement = new Image();
                 imgElement.onload = function() {
-                    let src = null, dst = null, contours = null, hierarchy = null, M_dilate = null, warped = null, sharpenKernel = null;
+                    let src = null, dst = null, contours = null, hierarchy = null, M_dilate = null, workingMat = null, sharpenKernel = null;
                     try {
                         src = cv.imread(imgElement);
                         dst = new cv.Mat();
                         
+                        // 1. Proses Mencari Batas Kertas
                         cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
                         let ksize = new cv.Size(5, 5);
                         cv.GaussianBlur(dst, dst, ksize, 0, 0, cv.BORDER_DEFAULT);
@@ -318,6 +314,9 @@
                             approx.delete();
                         }
                         
+                        workingMat = new cv.Mat();
+                        let cropSuccess = false;
+                        
                         if (bestContour) {
                             let points = [];
                             for(let i=0; i<4; i++) {
@@ -343,44 +342,55 @@
                             let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth-1, 0, maxWidth-1, maxHeight-1, 0, maxHeight-1]);
                             
                             let M = cv.getPerspectiveTransform(srcTri, dstTri);
-                            warped = new cv.Mat();
                             let dsize = new cv.Size(maxWidth, maxHeight);
                             
-                            // Menggunakan INTER_CUBIC untuk kualitas regangan yang lebih mulus (mencegah teks bergerigi)
-                            cv.warpPerspective(src, warped, M, dsize, cv.INTER_CUBIC, cv.BORDER_CONSTANT, new cv.Scalar());
+                            cv.warpPerspective(src, workingMat, M, dsize, cv.INTER_CUBIC, cv.BORDER_CONSTANT, new cv.Scalar());
                             
-                            // PERBAIKAN KETAJAMAN: Menerapkan filter Sharpen agar teks hitam lebih kontras
-                            sharpenKernel = cv.matFromArray(3, 3, cv.CV_32F, [
-                                0, -1, 0,
-                                -1, 5, -1,
-                                0, -1, 0
-                            ]);
-                            cv.filter2D(warped, warped, cv.CV_8U, sharpenKernel);
-                            
-                            let outCanvas = document.createElement('canvas');
-                            cv.imshow(outCanvas, warped);
-                            
-                            // Kualitas 100% tanpa kompresi
-                            let croppedBase64 = outCanvas.toDataURL('image/jpeg', 1.0);
-                            
-                            srcTri.delete(); dstTri.delete(); M.delete(); warped.delete();
-                            src.delete(); dst.delete(); contours.delete(); hierarchy.delete();
-                            if (M_dilate) M_dilate.delete();
-                            if (sharpenKernel) sharpenKernel.delete();
-                            
-                            resolve({ success: true, base64: croppedBase64 });
+                            srcTri.delete(); dstTri.delete(); M.delete();
+                            cropSuccess = true;
                         } else {
-                            src.delete(); dst.delete(); contours.delete(); hierarchy.delete();
-                            if (M_dilate) M_dilate.delete();
-                            if (warped) warped.delete();
-                            if (sharpenKernel) sharpenKernel.delete();
-                            resolve({ success: false });
+                            // Jika gagal mendeteksi kotak kertas, gunakan gambar asli seluruhnya
+                            src.copyTo(workingMat);
                         }
+
+                        // =========================================================
+                        // 2. TAHAP PENINGGIAN KONTRAS (Diterapkan sebelum OCR)
+                        // =========================================================
+                        
+                        // Ubah ke warna Grayscale (Hitam-Putih ala scanner) 
+                        // Ini sangat disukai oleh mesin OCR karena membuang gangguan bayangan warna
+                        cv.cvtColor(workingMat, workingMat, cv.COLOR_RGBA2GRAY, 0);
+
+                        // Tinggikan kontras secara ekstrem (Alpha: 1.8 = 180% kontras, Beta: 10 = nambah terang sedikit)
+                        cv.convertScaleAbs(workingMat, workingMat, 1.8, 10);
+
+                        // Beri filter pertajam ekstra (Sharpen) agar tinta lebih menonjol
+                        sharpenKernel = cv.matFromArray(3, 3, cv.CV_32F, [
+                            0, -1, 0,
+                            -1, 5, -1,
+                            0, -1, 0
+                        ]);
+                        cv.filter2D(workingMat, workingMat, cv.CV_8U, sharpenKernel);
+
+                        // =========================================================
+
+                        let outCanvas = document.createElement('canvas');
+                        cv.imshow(outCanvas, workingMat);
+                        
+                        let enhancedBase64 = outCanvas.toDataURL('image/jpeg', 1.0);
+                        
+                        // Cleanup memori
+                        src.delete(); dst.delete(); contours.delete(); hierarchy.delete();
+                        if (M_dilate) M_dilate.delete();
+                        if (workingMat) workingMat.delete();
+                        if (sharpenKernel) sharpenKernel.delete();
+                        
+                        resolve({ success: true, base64: enhancedBase64, isCropped: cropSuccess });
                     } catch (e) {
                         if(src) src.delete(); if(dst) dst.delete();
                         if(contours) contours.delete(); if(hierarchy) hierarchy.delete();
                         if(M_dilate) M_dilate.delete();
-                        if(warped) warped.delete();
+                        if(workingMat) workingMat.delete();
                         if(sharpenKernel) sharpenKernel.delete();
                         reject(e);
                     }
