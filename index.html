@@ -1,278 +1,448 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" /> 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PDF Editor TTD - Galactic Edition (Checklist Locked)</title>
-  
-  <!-- Library Inti (External CDNs) -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- PDF-Lib (Global Script) -->
-  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <!-- Font Awesome -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
-
-  <!-- Style Modular -->
-  <link rel="stylesheet" href="style.css">
-</head>
-<body class="antialiased">
-
-<!-- EFEK VISUAL -->
-<canvas id="constellation-canvas"></canvas>
-<div id="spotlight"></div>
-
-<header class="backdrop-blur-md shadow-sm sticky top-0 z-40 border-b initial-hidden">
-    <div class="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4">
-        <div class="flex items-center space-x-3">
-            <img id="app-icon" src="https://ajmaerlangga.github.io/image/icon_merge_purple.png" class="h-8 w-8" alt="App Icon">
-            <h1 class="text-2xl font-bold">PDF Editor</h1>
-        </div>
-        <button id="settings-button-editor" class="p-2 rounded-full transition-all duration-300 hover:rotate-45" onmouseover="this.style.backgroundColor='var(--border-color)'" onmouseout="this.style.backgroundColor='transparent'"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826 3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></button>
-    </div>
-</header>
-
-<div class="flex flex-col lg:flex-row h-[calc(100vh-68px)]">
-  
-  <!-- Konten Utama (Preview PDF) -->
-  <main id="main-content" class="flex flex-col flex-1 p-4 sm:p-6 lg:p-8 transition-all duration-300 initial-hidden overflow-y-auto" style="animation-delay: 0.2s;">
-      
-      <div id="dropzone" class="col-span-full flex flex-col items-center justify-center h-full rounded-xl border-2 border-dashed p-12 text-center transition-all duration-300 pulsing-border">
-          <img id="dropzone-icon" src="https://ajmaerlangga.github.io/image/icon_merge_purple.png" class="h-20 w-20 mb-4" alt="Dropzone Icon">
-          <h3 class="text-2xl font-semibold">Drag & Drop PDF Anda ke Sini</h3>
-          <p class="mt-2" style="color: var(--text-secondary);">atau</p>
-          <button onclick="triggerFileInput()" class="shimmer-button mt-4 text-white px-6 py-2 rounded-lg transition-all duration-300 font-semibold shadow-md active:scale-95" style="background-image: linear-gradient(to right, var(--accent-start), var(--accent-end));">Pilih File</button>
-      </div>
-
-      <!-- Preview Area -->
-      <div id="preview-section" class="hidden flex-grow flex flex-col h-full overflow-hidden relative">
-          
-          <!-- Draggable Checklist Widget -->
-          <div id="ji-checklist-box" class="hidden">
-            <div id="checklist-header">
-               <h4 class="font-bold text-sm uppercase tracking-wider text-white"><i class="fas fa-grip-vertical mr-2 opacity-50"></i> Note: Cek Struktur JI</h4>
-            </div>
-            <div class="checklist-content">
-              <label class="checklist-item">
-                <input type="checkbox" class="modern-checkbox"> <span>Job Name</span>
-              </label>
-              <label class="checklist-item">
-                <input type="checkbox" class="modern-checkbox"> <span>Size</span>
-              </label>
-              <label class="checklist-item">
-                <input type="checkbox" class="modern-checkbox"> <span>SKU Name</span>
-              </label>
-              <label class="checklist-item">
-                <input type="checkbox" class="modern-checkbox"> <span>Quantity Per SKU</span>
-              </label>
-              <label class="checklist-item">
-                <input type="checkbox" class="modern-checkbox"> <span>Total Quantity</span>
-              </label>
-              <label class="checklist-item">
-                <input type="checkbox" class="modern-checkbox"> <span>Percentage</span>
-              </label>
-              <!-- NEW CHECKLIST ITEM ADDED HERE -->
-              <label class="checklist-item">
-                <input type="checkbox" class="modern-checkbox"> <span>Note Tambahan</span>
-              </label>
-
-              <!-- CRB Toggle Option -->
-              <div class="crb-group">
-                <span class="crb-label">CRB</span>
-                <div class="toggle-container">
-                  <label class="flex-1">
-                    <input type="radio" name="crb-status" class="toggle-input" value="yes">
-                    <div class="toggle-option yes-opt">YA</div>
-                  </label>
-                  <label class="flex-1">
-                    <input type="radio" name="crb-status" class="toggle-input" value="no">
-                    <div class="toggle-option no-opt">TIDAK</div>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div id="pdf-loading-overlay" class="hidden absolute inset-0 z-50 flex flex-col items-center justify-center">
-              <div class="spinner-large"></div>
-              <p class="mt-4 text-lg" style="color: var(--text-secondary);">Memuat PDF...</p>
-          </div>
-
-          <div class="pdf-main">
-            <div class="pdf-pages-wrapper" id="pdf-pages-wrapper"></div>
-          </div>
-      </div>
-
-  </main>
-
-  <!-- Sidebar -->
-  <aside class="w-full lg:w-96 backdrop-blur-md p-6 flex flex-col border-l initial-hidden h-full overflow-hidden" style="animation-delay: 0.4s;">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Arsip Dokumen OCR</title>
+    <!-- Menggunakan Tailwind CSS untuk styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Menggunakan Tesseract.js untuk OCR -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <!-- Menggunakan OpenCV.js untuk Auto Crop / Edge Detection -->
+    <script async src="https://docs.opencv.org/4.8.0/opencv.js" type="text/javascript"></script>
     
-      <div class="flex flex-col flex-grow min-h-0 space-y-4 overflow-y-auto sidebar-content-scroll">
-          
-          <input type="file" id="pdf-file" accept="application/pdf" class="hidden" />
-          <input type="file" id="sig-file" accept="image/png, image/jpeg" class="hidden" multiple />
-          
-          <h3 class="text-sm font-semibold mb-2 uppercase tracking-wider" style="color: var(--text-secondary);">Galeri Tanda Tangan</h3>
-                
-          <button id="upload-signature-btn" onclick="triggerSignatureUpload()" class="shimmer-button w-full px-4 py-2 rounded-lg transition-all duration-300 flex items-center justify-center font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-95" style="background-color: var(--button-secondary-bg); color: var(--text-primary); --tw-ring-offset-color: var(--bg-color); --tw-ring-color: var(--accent-start);">
-              <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-              Unggah Tanda Tangan
-          </button>
+    <style>
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans text-gray-800 p-4 sm:p-8">
 
-          <div id="signature-gallery" class="mt-4 overflow-y-auto"></div>
-          
-          <div class="mt-4 pt-4 border-t" style="border-color: var(--border-color);">
-              <h3 class="text-sm font-semibold mb-2 uppercase tracking-wider" style="color: var(--text-secondary);">Timestamp</h3>
-              <select id="user" class="hidden">
-                <option value="0">--Pilih--</option>
-                <option value="sss">Sales Support</option>
-                <option value="sales">Sales</option>
-              </select>
-              <div id="timestamp-controls">
-                  <button class="timestamp-btn" data-type="SSS">SSS</button>
-                  <button class="timestamp-btn" data-type="SALES">SALES</button>
-                  <button class="timestamp-btn" data-type="NONE">Nonaktif</button>
-              </div>
-          </div>
-          
-          <!-- NEW LABEL SECTION -->
-          <div class="mt-4 pt-4 border-t" style="border-color: var(--border-color);">
-            <h3 class="text-sm font-semibold mb-2 uppercase tracking-wider" style="color: var(--text-secondary);">Label QC / Random</h3>
-            <div id="label-controls" class="grid grid-cols-3 gap-2">
-                <button class="label-btn" data-type="RANDOM">RANDOM</button>
-                <button class="label-btn" data-type="QC">QC 100%</button>
-                <button class="label-btn" data-type="NONE">Hapus</button>
-            </div>
-          </div>
-
-          <div class="mt-4"> 
-            <h3 class="flex justify-between items-center cursor-pointer collapsed p-3 rounded-lg" id="shapes-header" style="background-color: var(--button-secondary-bg); border: 1px solid var(--border-color);">
-              <span class="text-sm font-semibold uppercase tracking-wider" style="color: var(--text-secondary);">Shapes</span>
-              <i id="shapes-chevron" class="fas fa-chevron-down transition-transform duration-200" style="color: var(--text-secondary);"></i>
-            </h3>
-            <div id="shapes-content" style="display: none;" class="formatting-section mt-2">
-              <label class="block font-medium mb-1 text-sm" style="color: var(--text-secondary);">Tipe Shape:</label>
-              <div id="shape-buttons" class="flex gap-2">
-                <button type="button" class="shape-btn active-btn" data-shape="rectangle" title="Rectangle"><i class="fas fa-square"></i></button>
-                <button type="button" class="shape-btn" data-shape="ellipse" title="Ellipse"><i class="fas fa-circle"></i></button>
-                <button type="button" class="shape-btn" data-shape="line" title="Line"><i class="fas fa-minus"></i></button>
-              </div>
-              <label class="block font-medium mb-1 text-sm mt-2" style="color: var(--text-secondary);">Warna Shape:</label>
-              <input type="color" id="shape-color" value="#f43f5e">
-              <button id="btnToggleShape" class="action-button action-button-secondary mt-2">Add Shape</button>
-            </div>
-          </div>
-          
-          <div class="formatting-section" id="text-formatting-section">
-            <h3 class="text-sm font-semibold uppercase tracking-wider mb-2" style="color: var(--accent-start);">Format Teks</h3>
-            <div class="mb-2">
-              <label class="text-sm" style="color: var(--text-secondary);">Jenis Font:</label>
-              <select id="font-family">
-                <option value="Helvetica">Helvetica</option>
-                <option value="Times Roman">Times Roman</option>
-                <option value="Courier">Courier</option>
-                <option value="Verdana">Verdana</option>
-              </select>
-            </div>
-            <div class="mb-2">
-              <label class="text-sm" style="color: var(--text-secondary);">Ukuran Font:</label>
-              <input type="number" id="font-size" value="12" min="1" />
-            </div>
-            <div class="mb-2">
-              <label class="text-sm" style="color: var(--text-secondary);">Warna Teks:</label>
-              <input type="color" id="font-color" value="#000000">
-            </div>
-            <div class="formatting-buttons">
-              <button id="btn-bold">B</button>
-              <button id="btn-italic">I</button>
-              <button id="btn-underline">U</button>
-              <button id="btn-align-left"><i class="fas fa-align-left"></i></button>
-              <button id="btn-align-center"><i class="fas fa-align-center"></i></button>
-              <button id="btn-align-right"><i class="fas fa-align-right"></i></button>
-            </div>
-          </div>
-      </div>
-      
-      <div class="mt-6 pt-6 border-t" style="border-color: var(--border-color);">
-          <div class="mb-3">
-            <label class="block text-sm font-medium" style="color: var(--text-secondary);">Nama Output PDF:</label>
-            <input type="text" id="outputFileName" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 sm:text-sm" style="background-color: var(--input-bg); border-color: var(--border-color); color: var(--text-primary); --tw-ring-color: var(--accent-start);" placeholder="Modified_PDF">
-          </div>
-          
-          <button id="btnDownload" class="action-button action-button-primary shimmer-button w-full py-3">
-            <span id="mergeButtonText">Unduh PDF</span>
-            <div id="mergeSpinner" class="spinner ml-2 hidden"></div>
-          </button>
-          
-          <div class="flex items-center space-x-3 mt-4">
-              <button onclick="triggerFileInput()" class="shimmer-button flex-1 px-4 py-2 rounded-lg transition-all duration-300 flex items-center justify-center font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-95 hover:-translate-y-0.5" style="background-color: var(--button-secondary-bg); color: var(--text-primary); --tw-ring-offset-color: var(--bg-color); --tw-ring-color: var(--accent-start);">
-                  <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2A8.001 8.001 0 0019.419 15m0 0H15" /></svg>
-                  Ganti File
-              </button>
-              <button onclick="clearAllFiles()" class="bg-red-900/50 text-red-400 p-2.5 rounded-lg hover:bg-red-900 hover:text-red-300 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-95 hover:scale-105" style="--tw-ring-offset-color: var(--bg-color); --tw-ring-color: #ef4444;" title="Hapus PDF">
-                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              </button>
-          </div>
-
-      </div>
-  </aside>
-</div>
-
-<div class="pdf-controls">
-  <button id="btnZoomOut" title="Zoom Out"><i class="fas fa-search-minus"></i></button>
-  <input type="number" id="zoomInput" value="100" min="10" max="400" step="5" />%
-  <button id="btnZoomIn" title="Zoom In"><i class="fas fa-search-plus"></i></button>
-  <button id="btnUndo" class="gray-btn" title="Undo"><i class="fas fa-undo"></i></button>
-  <button id="btnRedo" class="gray-btn" title="Redo"><i class="fas fa-redo"></i></button>
-  <button id="btnPanMode" class="gray-btn" title="Pan Mode"><i class="fas fa-hand-paper"></i></button>
-  <button id="btnPrevPage" title="Halaman sebelumnya"><i class="fas fa-chevron-up"></i></button>
-  <input type="number" id="currentPageInput" value="1" min="1" title="Pilih halaman" />
-  <span class="mx-1 text-sm" style="color: var(--text-secondary);">/ <span id="totalPagesSpan">1</span></span>
-  <button id="btnNextPage" title="Halaman berikutnya"><i class="fas fa-chevron-down"></i></button>
-</div>
-
-<div id="custom-context-menu" class="custom-context-menu">
-  <ul><li id="context-copy-all">Copy ke Semua Halaman</li></ul>
-</div>
-
-<div id="settings-modal-container" class="modal-container hidden fixed inset-0 z-[10000] flex items-center justify-center p-4">
-  <div id="settings-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm opacity-0"></div>
-  <div id="settings-modal-content" class="w-full max-w-sm rounded-xl border p-6 shadow-2xl opacity-0 -translate-y-4 relative" style="background-color: var(--card-color); border-color: var(--border-color);">
-    <div class="flex items-center justify-between mb-6">
-      <h2 class="text-xl font-bold">Theme Settings</h2>
-      <button id="close-settings-button" class="p-1 rounded-full transition-colors" style="color: var(--text-secondary);" onmouseover="this.style.backgroundColor='var(--border-color)'" onmouseout="this.style.backgroundColor='transparent'"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
-    </div>
-    <div class="space-y-4">
-      <div class="flex items-center justify-between"><label class="text-sm">Mode</label><div class="flex items-center p-1 rounded-md" style="background-color: var(--button-secondary-bg);"><button id="theme-dark-button" class="px-3 py-1 text-sm rounded-md transition-colors">Dark</button><button id="theme-light-button" class="px-3 py-1 text-sm rounded-md transition-colors">Light</button></div></div>
-      <div class="flex items-center justify-between"><label class="text-sm">Accent Color</label><div id="accent-color-picker" class="flex space-x-3"><button class="w-6 h-6 rounded-full transition-all" style="background-image: linear-gradient(to right, var(--accent-purple-start), var(--accent-purple-end));" data-color-name="purple"></button><button class="w-6 h-6 rounded-full transition-all" style="background-image: linear-gradient(to right, var(--accent-blue-start), var(--accent-blue-end));" data-color-name="blue"></button><button class="w-6 h-6 rounded-full transition-all" style="background-image: linear-gradient(to right, var(--accent-emerald-start), var(--accent-emerald-end));" data-color-name="emerald"></button><button class="w-6 h-6 rounded-full transition-all" style="background-image: linear-gradient(to right, var(--accent-rose-start), var(--accent-rose-end));" data-color-name="rose"></button></div></div>
-      
-      <div class="flex items-center justify-between pt-4 border-t" style="border-color: var(--border-color);">
-        <label class="text-sm">Notifikasi & Checklist</label>
-        <div class="flex items-center p-1 rounded-md" style="background-color: var(--button-secondary-bg);">
-          <button id="ji-notify-on" class="px-3 py-1 text-sm rounded-md transition-colors">Aktif</button>
-          <button id="ji-notify-off" class="px-3 py-1 text-sm rounded-md transition-colors">Nonaktif</button>
+    <div class="max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 relative">
+        
+        <!-- Overlay Loading OpenCV (Muncul saat pertama buka web) -->
+        <div id="opencvLoadingMsg" class="absolute inset-0 bg-white/90 z-50 rounded-xl flex flex-col items-center justify-center">
+            <div class="loader mb-4"></div>
+            <p class="text-blue-600 font-bold text-center">Memuat Modul Scanner Pintar...</p>
+            <p class="text-gray-500 text-xs mt-2 px-4 text-center">Mengunduh modul deteksi tepi otomatis (OpenCV).<br>Harap tunggu sebentar.</p>
         </div>
-      </div>
+
+        <h1 class="text-2xl font-bold text-center text-blue-600 mb-2">Scanner Arsip Otomatis</h1>
+        <p class="text-center text-gray-500 mb-8 text-sm">Upload foto dokumen. Sistem akan memotong (auto-crop) bagian kertas dan mengekstrak Order # serta Shipment Date.</p>
+
+        <!-- Pilihan Aksi -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 opacity-50 pointer-events-none transition-opacity duration-300" id="actionButtons">
+            <button onclick="startCamera()" class="flex flex-col items-center justify-center py-8 border-2 border-blue-400 rounded-xl bg-blue-50 hover:bg-blue-100 transition text-blue-700 font-semibold shadow-sm">
+                <svg aria-hidden="true" class="w-12 h-12 mb-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                Buka Kamera HP
+            </button>
+            
+            <label for="imageUpload" class="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition shadow-sm text-gray-700 font-semibold">
+                <svg aria-hidden="true" class="w-12 h-12 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                Upload File / Galeri
+                <input id="imageUpload" type="file" accept="image/*" class="hidden" onchange="handleImageUpload(event)" />
+            </label>
+        </div>
+
+        <!-- Area Kamera -->
+        <div id="cameraContainer" class="hidden mb-6 rounded-xl overflow-hidden bg-black border-2 border-gray-800 shadow-lg flex-col">
+            <!-- Container Video -->
+            <div class="relative w-full bg-black flex items-center justify-center min-h-[40vh]">
+                <!-- object-contain mencegah crop/zoom. muted ditambahkan agar jalan di iOS/Safari -->
+                <video id="cameraStream" class="w-full max-h-[60vh] object-contain" autoplay playsinline muted></video>
+                <div class="absolute inset-0 border-4 border-blue-500/50 m-2 sm:m-4 rounded pointer-events-none"></div>
+            </div>
+            <!-- Container Tombol -->
+            <div class="p-4 bg-gray-900 flex justify-center gap-3 sm:gap-4 w-full">
+                <button onclick="stopCamera()" class="bg-gray-700 text-white font-semibold py-2 px-4 sm:px-6 rounded-full shadow-lg hover:bg-gray-600 border border-gray-500 text-sm sm:text-base">
+                    Batal
+                </button>
+                <button onclick="capturePhoto()" class="bg-blue-600 text-white font-bold py-2 px-6 sm:px-8 rounded-full shadow-lg hover:bg-blue-700 border-2 border-white flex items-center gap-2 text-sm sm:text-base">
+                    📸 Ambil Foto
+                </button>
+            </div>
+        </div>
+        
+        <canvas id="canvas" class="hidden"></canvas>
+
+        <!-- Preview Gambar -->
+        <div id="previewContainer" class="hidden mb-6">
+            <p class="font-semibold text-sm mb-2 text-gray-700">Hasil Scan (Auto Crop & Sharpen):</p>
+            <img id="imagePreview" class="max-w-full h-auto rounded border-2 border-blue-200 shadow-sm" alt="Preview Dokumen" />
+            <p id="cropStatusLabel" class="text-xs text-green-600 font-medium mt-1 hidden">✓ Kertas berhasil terdeteksi dan dipertajam.</p>
+        </div>
+
+        <!-- Status Loading Pemrosesan -->
+        <div id="loadingStatus" class="hidden flex flex-col items-center justify-center mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div class="loader mb-3"></div>
+            <p id="statusText" class="text-sm font-medium text-yellow-700 text-center">Sedang memproses...</p>
+        </div>
+
+        <!-- Hasil Ekstraksi -->
+        <div id="resultContainer" class="hidden bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
+            <h3 class="font-bold text-gray-700 mb-4 border-b pb-2">Hasil Ekstraksi Data</h3>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Order #</label>
+                <input type="text" id="orderNumberInput" class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Misal: 181-0000771522">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Shipment Date</label>
+                <input type="text" id="shipmentDateInput" class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Misal: 10/04/2026">
+            </div>
+
+            <details class="text-xs text-gray-500 mt-4">
+                <summary class="cursor-pointer font-medium hover:text-gray-700">Lihat seluruh teks yang terbaca</summary>
+                <div id="rawText" class="mt-2 p-2 bg-white border rounded h-32 overflow-y-auto whitespace-pre-wrap"></div>
+            </details>
+        </div>
+
+        <!-- Tombol Simpan -->
+        <button id="saveBtn" onclick="saveImage()" disabled class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Simpan Gambar
+        </button>
+
     </div>
-  </div>
-</div>
 
-<div id="ji-confirm-modal-container" class="modal-container hidden fixed inset-0 z-[10001] flex items-center justify-center p-4">
-  <div id="ji-confirm-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm opacity-0"></div>
-  <div id="ji-confirm-modal-content" class="w-full max-w-sm rounded-xl border p-6 shadow-2xl opacity-0 -translate-y-4 relative" style="background-color: var(--card-color); border-color: var(--border-color);">
-    <h2 class="text-xl font-bold mb-4">Konfirmasi Unduh</h2>
-    <p class="mb-6" style="color: var(--text-secondary);">Apakah Anda yakin JI sudah sesuai dan siap untuk diunduh?</p>
-    <div class="flex space-x-4">
-      <button id="ji-confirm-cek-ulang" class="action-button action-button-secondary flex-1 py-2">Cek Ulang</button>
-      <button id="ji-confirm-sesuai" class="action-button action-button-primary flex-1 py-2 shimmer-button">Sesuai</button>
-    </div>
-  </div>
-</div>
+    <script>
+        let currentImageBase64 = null;
+        let originalFileExtension = 'png';
+        let videoStream = null;
+        let isCvReady = false;
 
-<div id="toast-container"></div>
+        // Cek secara berkala apakah OpenCV sudah siap diload
+        let cvCheckInterval = setInterval(() => {
+            if (typeof cv !== 'undefined' && cv.Mat) {
+                clearInterval(cvCheckInterval);
+                isCvReady = true;
+                document.getElementById('opencvLoadingMsg').style.display = 'none';
+                document.getElementById('actionButtons').classList.remove('opacity-50', 'pointer-events-none');
+            }
+        }, 500);
 
-<!-- Logic Modular -->
-<script type="module" src="script.js"></script>
+        // --- Fungsi UI & Kamera Dasar ---
+        
+        async function startCamera() {
+            const cameraContainer = document.getElementById('cameraContainer');
+            const video = document.getElementById('cameraStream');
+            const actionButtons = document.getElementById('actionButtons');
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                video.srcObject = videoStream;
+                cameraContainer.classList.remove('hidden');
+                cameraContainer.classList.add('flex');
+                actionButtons.classList.add('hidden');
+                resetUI();
+            } catch (err) {
+                console.error("Gagal akses kamera:", err);
+                alert("Tidak dapat mengakses kamera. Pastikan browser mengizinkan akses.");
+            }
+        }
 
+        function stopCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            document.getElementById('cameraContainer').classList.remove('flex');
+            document.getElementById('cameraContainer').classList.add('hidden');
+            document.getElementById('actionButtons').classList.remove('hidden');
+        }
+
+        function capturePhoto() {
+            const video = document.getElementById('cameraStream');
+            const canvas = document.getElementById('canvas');
+            
+            // Ambil resolusi asli video dari kamera
+            let vw = video.videoWidth;
+            let vh = video.videoHeight;
+            
+            // PERBAIKAN BLUR: Naikkan batas maksimal ke 2560px (Quad HD)
+            // Ini cukup besar untuk mempertahankan ketajaman teks tapi masih aman dari memori crash
+            const MAX_RES = 2560; 
+            if (vw > MAX_RES || vh > MAX_RES) {
+                const ratio = Math.min(MAX_RES / vw, MAX_RES / vh);
+                vw = Math.round(vw * ratio);
+                vh = Math.round(vh * ratio);
+            }
+            
+            // Fallback aman jika resolusi videoWidth kosong di awal
+            canvas.width = vw || 1280;
+            canvas.height = vh || 720;
+            
+            const ctx = canvas.getContext('2d');
+            
+            // Isi background putih untuk menghindari background transparan yang jadi hitam
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Gambar video ke canvas yang ukurannya sudah disesuaikan
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // PERBAIKAN KUALITAS: Setel JPEG Quality ke 1.0 (100% tanpa kompresi blur)
+            const base64Img = canvas.toDataURL('image/jpeg', 1.0);
+            originalFileExtension = 'jpg';
+            
+            stopCamera();
+            processImageFlow(base64Img);
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            resetUI();
+            const fileNameParts = file.name.split('.');
+            if(fileNameParts.length > 1) originalFileExtension = fileNameParts.pop().toLowerCase();
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                processImageFlow(e.target.result);
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function resetUI() {
+            document.getElementById('resultContainer').classList.add('hidden');
+            document.getElementById('previewContainer').classList.add('hidden');
+            document.getElementById('cropStatusLabel').classList.add('hidden');
+            document.getElementById('loadingStatus').classList.add('hidden'); 
+            document.getElementById('saveBtn').disabled = true;
+            document.getElementById('orderNumberInput').value = '';
+            document.getElementById('shipmentDateInput').value = '';
+            document.getElementById('rawText').innerText = '';
+        }
+
+        // --- Alur Pemrosesan Utama (Crop -> OCR) ---
+
+        async function processImageFlow(originalBase64) {
+            const loadingStatus = document.getElementById('loadingStatus');
+            const statusText = document.getElementById('statusText');
+            
+            loadingStatus.classList.remove('hidden');
+            
+            const imgPreview = document.getElementById('imagePreview');
+            imgPreview.src = originalBase64;
+            document.getElementById('previewContainer').classList.remove('hidden');
+            
+            statusText.innerText = "Mendeteksi, meratakan kertas, dan mempertajam teks...";
+            await new Promise(r => setTimeout(r, 100)); 
+            
+            let finalImageBase64 = originalBase64;
+
+            if (isCvReady) {
+                try {
+                    const cropResult = await autoCropImage(originalBase64);
+                    if (cropResult.success) {
+                        finalImageBase64 = cropResult.base64;
+                        imgPreview.src = finalImageBase64;
+                        document.getElementById('cropStatusLabel').classList.remove('hidden');
+                    }
+                } catch (e) {
+                    console.warn("Auto crop gagal, menggunakan gambar asli.", e);
+                }
+            }
+            
+            currentImageBase64 = finalImageBase64;
+
+            statusText.innerHTML = "Memindai teks pada dokumen...<br><span class='text-xs font-normal'>Mohon tunggu beberapa detik.</span>";
+            await performOCR(currentImageBase64);
+            
+            loadingStatus.classList.add('hidden');
+        }
+
+        // --- Fungsi Auto Crop & Sharpen OpenCV ---
+
+        function autoCropImage(imageSrc) {
+            return new Promise((resolve, reject) => {
+                let imgElement = new Image();
+                imgElement.onload = function() {
+                    let src = null, dst = null, contours = null, hierarchy = null, M_dilate = null, warped = null, sharpenKernel = null;
+                    try {
+                        src = cv.imread(imgElement);
+                        dst = new cv.Mat();
+                        
+                        cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
+                        let ksize = new cv.Size(5, 5);
+                        cv.GaussianBlur(dst, dst, ksize, 0, 0, cv.BORDER_DEFAULT);
+                        
+                        cv.Canny(dst, dst, 75, 200, 3, false);
+                        
+                        M_dilate = cv.Mat.ones(3, 3, cv.CV_8U);
+                        cv.dilate(dst, dst, M_dilate, new cv.Point(-1, -1), 1, cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
+                        
+                        contours = new cv.MatVector();
+                        hierarchy = new cv.Mat();
+                        cv.findContours(dst, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+                        
+                        let sortableContours = [];
+                        let minArea = (src.cols * src.rows) * 0.05; 
+                        
+                        for (let i = 0; i < contours.size(); ++i) {
+                            let cnt = contours.get(i);
+                            let area = cv.contourArea(cnt, false);
+                            if (area > minArea) {
+                                sortableContours.push({ cnt: cnt, area: area });
+                            }
+                        }
+                        
+                        sortableContours.sort((a, b) => b.area - a.area);
+                        
+                        let bestContour = null;
+                        
+                        for (let i = 0; i < Math.min(sortableContours.length, 5); ++i) {
+                            let cnt = sortableContours[i].cnt;
+                            let peri = cv.arcLength(cnt, true);
+                            let approx = new cv.Mat();
+                            cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+                            
+                            if (approx.rows === 4) {
+                                bestContour = approx.clone();
+                                approx.delete();
+                                break;
+                            }
+                            approx.delete();
+                        }
+                        
+                        if (bestContour) {
+                            let points = [];
+                            for(let i=0; i<4; i++) {
+                                points.push({x: bestContour.data32S[i*2], y: bestContour.data32S[i*2+1]});
+                            }
+                            bestContour.delete();
+                            
+                            points.sort((a,b) => a.y - b.y);
+                            let top = points.slice(0,2).sort((a,b) => a.x - b.x);
+                            let bottom = points.slice(2,4).sort((a,b) => a.x - b.x);
+                            
+                            let tl = top[0], tr = top[1], bl = bottom[0], br = bottom[1];
+                            
+                            let widthA = Math.hypot(br.x - bl.x, br.y - bl.y);
+                            let widthB = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+                            let maxWidth = Math.max(widthA, widthB);
+                            
+                            let heightA = Math.hypot(tr.x - br.x, tr.y - br.y);
+                            let heightB = Math.hypot(tl.x - bl.x, tl.y - bl.y);
+                            let maxHeight = Math.max(heightA, heightB);
+                            
+                            let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
+                            let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth-1, 0, maxWidth-1, maxHeight-1, 0, maxHeight-1]);
+                            
+                            let M = cv.getPerspectiveTransform(srcTri, dstTri);
+                            warped = new cv.Mat();
+                            let dsize = new cv.Size(maxWidth, maxHeight);
+                            
+                            // Menggunakan INTER_CUBIC untuk kualitas regangan yang lebih mulus (mencegah teks bergerigi)
+                            cv.warpPerspective(src, warped, M, dsize, cv.INTER_CUBIC, cv.BORDER_CONSTANT, new cv.Scalar());
+                            
+                            // PERBAIKAN KETAJAMAN: Menerapkan filter Sharpen agar teks hitam lebih kontras
+                            sharpenKernel = cv.matFromArray(3, 3, cv.CV_32F, [
+                                0, -1, 0,
+                                -1, 5, -1,
+                                0, -1, 0
+                            ]);
+                            cv.filter2D(warped, warped, cv.CV_8U, sharpenKernel);
+                            
+                            let outCanvas = document.createElement('canvas');
+                            cv.imshow(outCanvas, warped);
+                            
+                            // Kualitas 100% tanpa kompresi
+                            let croppedBase64 = outCanvas.toDataURL('image/jpeg', 1.0);
+                            
+                            srcTri.delete(); dstTri.delete(); M.delete(); warped.delete();
+                            src.delete(); dst.delete(); contours.delete(); hierarchy.delete();
+                            if (M_dilate) M_dilate.delete();
+                            if (sharpenKernel) sharpenKernel.delete();
+                            
+                            resolve({ success: true, base64: croppedBase64 });
+                        } else {
+                            src.delete(); dst.delete(); contours.delete(); hierarchy.delete();
+                            if (M_dilate) M_dilate.delete();
+                            if (warped) warped.delete();
+                            if (sharpenKernel) sharpenKernel.delete();
+                            resolve({ success: false });
+                        }
+                    } catch (e) {
+                        if(src) src.delete(); if(dst) dst.delete();
+                        if(contours) contours.delete(); if(hierarchy) hierarchy.delete();
+                        if(M_dilate) M_dilate.delete();
+                        if(warped) warped.delete();
+                        if(sharpenKernel) sharpenKernel.delete();
+                        reject(e);
+                    }
+                };
+                imgElement.src = imageSrc;
+            });
+        }
+
+        // --- Fungsi OCR & Ekstraksi ---
+
+        async function performOCR(imageSrc) {
+            try {
+                const result = await Tesseract.recognize(
+                    imageSrc,
+                    'eng',
+                    { logger: m => { /* console.log(m.progress); */ } }
+                );
+
+                const text = result.data.text;
+                document.getElementById('rawText').innerText = text; 
+                extractData(text);
+
+            } catch (error) {
+                console.error("Error saat OCR:", error);
+                alert("Gagal membaca teks. Pastikan gambar tidak buram.");
+            } finally {
+                document.getElementById('resultContainer').classList.remove('hidden');
+                document.getElementById('saveBtn').disabled = false;
+            }
+        }
+
+        function extractData(text) {
+            const orderRegex = /Order\s*#?\s*[:\-]?\s*([A-Za-z0-9\-]+)/i;
+            const orderMatch = text.match(orderRegex);
+            const dateRegex = /Shipment\s*Date\s*[:\-]?\s*([0-9A-Za-z\/]+)/i;
+            const dateMatch = text.match(dateRegex);
+
+            document.getElementById('orderNumberInput').value = (orderMatch && orderMatch[1]) ? orderMatch[1].trim() : "Tidak ditemukan";
+            document.getElementById('shipmentDateInput').value = (dateMatch && dateMatch[1]) ? dateMatch[1].trim() : "Tidak ditemukan";
+        }
+
+        function saveImage() {
+            if (!currentImageBase64) return;
+
+            let orderNo = document.getElementById('orderNumberInput').value.trim();
+            let shipDate = document.getElementById('shipmentDateInput').value.trim();
+
+            if (!orderNo || orderNo === "Tidak ditemukan") orderNo = "UnknownOrder";
+            if (!shipDate || shipDate === "Tidak ditemukan") shipDate = "UnknownDate";
+
+            shipDate = shipDate.replace(/\//g, '-');
+            orderNo = orderNo.replace(/[^a-zA-Z0-9\-]/g, '');
+            
+            const newFileName = `Order_${orderNo}_Date_${shipDate}.${originalFileExtension}`;
+
+            const link = document.createElement('a');
+            link.href = currentImageBase64;
+            link.download = newFileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
 </body>
 </html>
