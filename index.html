@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scanner Arsip Cerdas</title>
-    <!-- Menggunakan Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Inter untuk tampilan profesional -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Icon Phosphor -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     
     <style>
@@ -28,14 +25,12 @@
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        /* Animasi muncul halus */
         .fade-in { animation: fadeIn 0.3s ease-in-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col items-center py-6 px-4 sm:p-8">
 
-    <!-- Header Aplikasi -->
     <header class="w-full max-w-lg mb-6 flex items-center justify-between">
         <div>
             <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -48,10 +43,8 @@
         </div>
     </header>
 
-    <!-- Kartu Utama -->
     <main class="w-full max-w-lg glass-panel rounded-2xl p-5 sm:p-7 relative overflow-hidden fade-in">
         
-        <!-- Pilihan Aksi -->
         <div class="grid grid-cols-2 gap-3 mb-6 transition-all duration-300" id="actionButtons">
             <button onclick="startCamera()" class="group flex flex-col items-center justify-center p-4 sm:p-6 rounded-xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md hover:bg-blue-50 transition-all text-slate-700">
                 <div class="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
@@ -71,11 +64,9 @@
             </label>
         </div>
 
-        <!-- Area Kamera -->
         <div id="cameraContainer" class="hidden flex-col gap-3 mb-6 fade-in">
             <div class="relative w-full bg-black rounded-xl overflow-hidden aspect-[3/4] sm:aspect-video flex items-center justify-center border border-slate-800 shadow-inner">
                 <video id="cameraStream" class="w-full h-full object-cover" autoplay playsinline muted></video>
-                <!-- Bingkai target (Reticle) -->
                 <div class="absolute inset-0 pointer-events-none p-6 flex flex-col justify-between">
                     <div class="flex justify-between w-full"><div class="w-8 h-8 border-t-4 border-l-4 border-white/70 rounded-tl-lg"></div><div class="w-8 h-8 border-t-4 border-r-4 border-white/70 rounded-tr-lg"></div></div>
                     <div class="flex justify-center"><span class="bg-black/50 text-white/90 text-xs px-3 py-1 rounded-full backdrop-blur-sm">Arahkan ke dokumen</span></div>
@@ -83,7 +74,6 @@
                 </div>
             </div>
             
-            <!-- Tombol Kontrol Kamera -->
             <div class="flex gap-3">
                 <button onclick="stopCamera()" class="flex-1 py-3 px-4 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition flex justify-center items-center gap-2">
                     Batal
@@ -96,21 +86,18 @@
         
         <canvas id="canvas" class="hidden"></canvas>
 
-        <!-- Preview Gambar & Loading -->
         <div id="processingUI" class="hidden flex-col gap-4 mb-6 fade-in">
             <div class="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
                 <img id="imagePreview" class="w-full h-auto max-h-[30vh] object-contain mx-auto" alt="Preview Dokumen" />
                 
-                <!-- Overlay Loading -->
                 <div id="loadingOverlay" class="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 hidden">
                     <div class="loader mb-3"></div>
-                    <p class="text-sm font-semibold text-blue-700">Menganalisis Cloud AI...</p>
-                    <p class="text-xs text-slate-500 mt-1">Mengekstrak data penting</p>
+                    <p class="text-sm font-semibold text-blue-700" id="loadingText">Meningkatkan Kontras & Mempertajam...</p>
+                    <p class="text-xs text-slate-500 mt-1">Mengoptimalkan gambar untuk OCR</p>
                 </div>
             </div>
         </div>
 
-        <!-- Hasil Ekstraksi -->
         <div id="resultContainer" class="hidden fade-in flex-col gap-4">
             <div class="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
                 <i class="ph-fill ph-check-circle text-green-500 text-xl mt-0.5"></i>
@@ -121,7 +108,6 @@
             </div>
 
             <div class="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <!-- Field Order # -->
                 <div>
                     <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Order Number</label>
                     <div class="relative">
@@ -132,7 +118,6 @@
                     </div>
                 </div>
 
-                <!-- Field Shipment Date -->
                 <div>
                     <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Shipment Date</label>
                     <div class="relative">
@@ -144,7 +129,6 @@
                 </div>
             </div>
 
-            <!-- Debugging Accordion -->
             <details class="group bg-white border border-slate-200 rounded-lg overflow-hidden">
                 <summary class="flex items-center justify-between cursor-pointer p-3 text-xs font-medium text-slate-600 hover:bg-slate-50 list-none">
                     <span class="flex items-center gap-2"><i class="ph ph-code"></i> Data Mentah (Debug)</span>
@@ -155,7 +139,6 @@
                 </div>
             </details>
 
-            <!-- Tombol Aksi Bawah -->
             <div class="flex gap-3 mt-2">
                 <button onclick="resetUI(); document.getElementById('actionButtons').classList.remove('hidden');" class="px-4 py-3 bg-white border border-slate-300 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition">
                     <i class="ph ph-arrow-counter-clockwise text-lg"></i>
@@ -177,22 +160,17 @@
         let originalFileExtension = 'png';
         let videoStream = null;
 
-        // URL Google Apps Script
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwr6T6Q0dWXinD_hNYlUuORtnKrTCDBUkUwSfpkK70uKFIA2-Q9DzrLgprN45aRpkWB/exec";
 
-        // --- Fungsi UI & Kamera Dasar ---
-        
         async function startCamera() {
             const cameraContainer = document.getElementById('cameraContainer');
             const video = document.getElementById('cameraStream');
             const actionButtons = document.getElementById('actionButtons');
             try {
-                // PERBAIKAN ZOOM: Minta resolusi tertinggi yang mungkin tanpa memaksa rasio spesifik.
-                // Ini akan menggunakan seluruh sensor kamera yang tersedia.
                 videoStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
                         facingMode: 'environment',
-                        width: { ideal: 4096 }, // Minta resolusi sangat tinggi (4K), browser akan menyesuaikan max HP
+                        width: { ideal: 4096 },
                         height: { ideal: 2160 }
                     } 
                 });
@@ -221,12 +199,9 @@
             const video = document.getElementById('cameraStream');
             const canvas = document.getElementById('canvas');
             
-            // Ambil resolusi asli video yang masuk
             const vw = video.videoWidth;
             const vh = video.videoHeight;
             
-            // PERBAIKAN UKURAN A4: Menghitung rasio dan memotong bagian tengah
-            // Rasio A4 adalah sekitar 1 : 1.414 (Lebar : Tinggi)
             const targetRatio = 1 / 1.414;
             const currentRatio = vw / vh;
             
@@ -236,30 +211,20 @@
             let startY = 0;
 
             if (currentRatio > targetRatio) {
-                // Gambar terlalu lebar (landscape/terpotong atas bawah di layar HP), potong lebarnya
                 cropWidth = vh * targetRatio;
                 startX = (vw - cropWidth) / 2;
             } else if (currentRatio < targetRatio) {
-                // Gambar terlalu tinggi, potong tingginya
                 cropHeight = vw / targetRatio;
                 startY = (vh - cropHeight) / 2;
             }
 
-            // Setel ukuran kanvas persis ke ukuran potong A4
             canvas.width = cropWidth;
             canvas.height = cropHeight;
-            
-            const ctx = canvas.getContext('2d');
-            
-            // Gambar warna putih di latar belakang agar bersih
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Gambar (dan secara implisit memotong) dari video stream ke canvas
-            // Parameter: drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
             ctx.drawImage(video, startX, startY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
             
-            // PERBAIKAN KEJELASAN FOTO: Gunakan JPEG Quality 1.0 (100%) agar teks tidak blur karena kompresi
             const base64Img = canvas.toDataURL('image/jpeg', 1.0);
             originalFileExtension = 'jpg';
             
@@ -294,21 +259,129 @@
             document.getElementById('rawText').innerText = '';
         }
 
-        // --- Alur Pemrosesan ---
+        // --- ALGORITMA PENINGKATAN GAMBAR MURNI JS (Tanpa Hitam Putih) ---
+
+        // Fungsi untuk menaikkan kontras warna (Color Contrast)
+        function applyContrast(imageData, contrast) {
+            let data = imageData.data;
+            // Rumus standar peningkatan kontras piksel
+            let factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = factor * (data[i] - 128) + 128;     // Red
+                data[i+1] = factor * (data[i+1] - 128) + 128; // Green
+                data[i+2] = factor * (data[i+2] - 128) + 128; // Blue
+            }
+            return imageData;
+        }
+
+        // Fungsi untuk mempertajam pinggiran gambar (Sharpen Convolution Kernel)
+        function applySharpen(ctx, w, h) {
+            let imageData = ctx.getImageData(0, 0, w, h);
+            let data = imageData.data;
+            let buff = new Uint8ClampedArray(data); // Salin sebagai referensi piksel asli
+            
+            // Matriks kernel sharpening
+            let weights = [
+                 0, -1,  0,
+                -1,  5, -1,
+                 0, -1,  0
+            ];
+            let side = Math.round(Math.sqrt(weights.length));
+            let halfSide = Math.floor(side / 2);
+            
+            let alphaFac = 1; // Ketebalan sharpen
+            
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    let dstOff = (y * w + x) * 4;
+                    let r = 0, g = 0, b = 0;
+                    
+                    for (let cy = 0; cy < side; cy++) {
+                        for (let cx = 0; cx < side; cx++) {
+                            let scy = y + cy - halfSide;
+                            let scx = x + cx - halfSide;
+                            if (scy >= 0 && scy < h && scx >= 0 && scx < w) {
+                                let srcOff = (scy * w + scx) * 4;
+                                let wt = weights[cy * side + cx];
+                                r += buff[srcOff] * wt;
+                                g += buff[srcOff + 1] * wt;
+                                b += buff[srcOff + 2] * wt;
+                            }
+                        }
+                    }
+                    data[dstOff] = r * alphaFac;
+                    data[dstOff + 1] = g * alphaFac;
+                    data[dstOff + 2] = b * alphaFac;
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        // Memuat Base64 ke dalam Canvas tersembunyi untuk diproses warnanya
+        async function enhanceImageColor(base64Src) {
+            return new Promise((resolve) => {
+                let img = new Image();
+                img.onload = () => {
+                    let cvs = document.createElement('canvas');
+                    let c = cvs.getContext('2d', { willReadFrequently: true });
+                    
+                    // Kita tidak perlu memproses gambar 4K untuk OCR (terlalu berat untuk CPU JS biasa)
+                    // Kita perkecil (resize) secara proporsional ke lebar max ~1500px agar cepat dan tetap tajam
+                    let maxW = 1500;
+                    let scale = 1;
+                    if(img.width > maxW) {
+                        scale = maxW / img.width;
+                    }
+                    
+                    cvs.width = img.width * scale;
+                    cvs.height = img.height * scale;
+                    
+                    c.drawImage(img, 0, 0, cvs.width, cvs.height);
+                    
+                    // 1. Naikkan Kontras Warna (nilai 0-255, misal: 40 agar warna menonjol tapi tidak aneh)
+                    let imgData = c.getImageData(0, 0, cvs.width, cvs.height);
+                    imgData = applyContrast(imgData, 50); // 50 adalah tingkat kontras (cukup tinggi)
+                    c.putImageData(imgData, 0, 0);
+                    
+                    // 2. Pertajam Tepi (Sharpen) agar teks tinta lebih "keras" (opsional, kadang lambat di HP jadul)
+                    applySharpen(c, cvs.width, cvs.height);
+                    
+                    // Ekspor kembali ke JPG berkualitas tinggi
+                    resolve(cvs.toDataURL('image/jpeg', 1.0));
+                };
+                img.src = base64Src;
+            });
+        }
+
+        // --- Alur Pemrosesan Utama ---
 
         async function processImageFlow(base64Image) {
             const processingUI = document.getElementById('processingUI');
             const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingText = document.getElementById('loadingText');
             const imgPreview = document.getElementById('imagePreview');
             
-            // Tampilkan UI Processing
             processingUI.classList.remove('hidden');
             processingUI.classList.add('flex');
             loadingOverlay.classList.remove('hidden');
-            imgPreview.src = base64Image;
             
-            currentImageBase64 = base64Image;
+            // Tampilkan foto asli sementara memproses Enhancement
+            imgPreview.src = base64Image;
 
+            loadingText.innerText = "Memperjelas warna dan teks...";
+            // Beri jeda kecil agar Browser sempat menampilkan teks Loading sebelum CPU JS bekerja keras
+            await new Promise(r => setTimeout(r, 50)); 
+            
+            // LAKUKAN PENINGKATAN WARNA & KETAJAMAN
+            let enhancedBase64 = await enhanceImageColor(base64Image);
+            currentImageBase64 = enhancedBase64;
+            
+            // Update preview ke gambar yang sudah di-enhance (Anda akan melihat bedanya)
+            imgPreview.src = currentImageBase64;
+
+            // Lanjut ke OCR
+            loadingText.innerText = "Menganalisis Cloud AI...";
             await performCloudOCR(currentImageBase64);
             
             loadingOverlay.classList.add('hidden');
@@ -357,56 +430,40 @@
             document.getElementById('saveBtn').disabled = false;
         }
 
-        // --- Ekstraksi Pintar (Regex Baru) ---
         function extractDataPintar(text) {
-            // Karena Google Vision kadang menggabungkan kolom tidak beraturan, kita gunakan multiline regex
-            // yang lebih longgar (mencari angka berformat tertentu di seluruh dokumen, bukan hanya tepat di sebelah kata kuncinya)
-
             let orderNo = "";
             let shipDate = "";
 
-            // 1. MENCARI ORDER NUMBER
-            // Strategi: Cari pola '181-xxxxxxxxxx' (angka 181, strip, lalu banyak angka)
-            // Pola ini unik dan sangat spesifik di dokumen Anda (lihat gambar).
             const orderPolaKuat = /(?:181\-)[0-9]{8,15}/g; 
             const foundOrders = text.match(orderPolaKuat);
             
             if (foundOrders && foundOrders.length > 0) {
-                // Jika ketemu, ambil yang pertama
                 orderNo = foundOrders[0];
             } else {
-                // Strategi Cadangan: Cari kata "Order", abaikan baris baru (\s*), lalu cari angka panjang
                 const orderCadanganRegex = /Order\s*#?[\s\S]{0,50}?([a-zA-Z0-9\-]{8,20})/i;
                 const matchCadangan = text.match(orderCadanganRegex);
                 if (matchCadangan && matchCadangan[1] && matchCadangan[1].length > 5) {
-                    // Pastikan bukan kata "PACKING" yang terambil
                     if(!matchCadangan[1].toUpperCase().includes("PACKING")) {
                         orderNo = matchCadangan[1].trim();
                     }
                 }
             }
 
-            // 2. MENCARI SHIPMENT DATE
-            // Strategi: Cari pola tanggal yang umum dd/mm/yyyy atau mm/dd/yyyy di sekitar kata kunci
-            // \s\S mencakup newline, sangat ampuh untuk teks kolom Vision
             const dateRegex = /Shipment[\s\S]{0,30}Date[\s\S]{0,20}?([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})/i;
             const dateMatch = text.match(dateRegex);
 
             if (dateMatch && dateMatch[1]) {
                 shipDate = dateMatch[1].trim();
             } else {
-                // Strategi cadangan: Cari sembarang format tanggal di dokumen
                 const sembarangTanggal = /([0-9]{2}\/[0-9]{2}\/[0-9]{4})/;
                 const matchSembarang = text.match(sembarangTanggal);
                 if(matchSembarang) shipDate = matchSembarang[1];
             }
 
-            // Set ke Input
             document.getElementById('orderNumberInput').value = orderNo || "Tidak ditemukan";
             document.getElementById('shipmentDateInput').value = shipDate || "Tidak ditemukan";
         }
 
-        // --- Fungsi Simpan ---
         function saveImage() {
             if (!currentImageBase64) return;
 
@@ -416,9 +473,8 @@
             if (!orderNo || orderNo === "Tidak ditemukan") orderNo = "UnknownOrder";
             if (!shipDate || shipDate === "Tidak ditemukan") shipDate = "UnknownDate";
 
-            // Bersihkan format untuk nama file
-            shipDate = shipDate.replace(/[\/\\]/g, '-'); // ganti / jadi -
-            orderNo = orderNo.replace(/[^a-zA-Z0-9\-]/g, ''); // hanya huruf, angka, strip
+            shipDate = shipDate.replace(/[\/\\]/g, '-'); 
+            orderNo = orderNo.replace(/[^a-zA-Z0-9\-]/g, ''); 
             
             const newFileName = `Order_${orderNo}_Date_${shipDate}.${originalFileExtension}`;
 
