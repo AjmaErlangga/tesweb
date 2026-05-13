@@ -2,22 +2,31 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner Arsip Cerdas</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SmartArchive - Pro Document Scanner</title>
+    
+    <!-- Tailwind CSS untuk Styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- jsPDF untuk mengubah gambar menjadi file PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <!-- Phosphor Icons untuk UI yang profesional -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     
+    <!-- Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
         .glass-panel {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.05);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.08);
         }
         .loader {
-            border: 3px solid #e5e7eb;
+            border: 3px solid #e2e8f0;
             border-top: 3px solid #2563eb;
             border-radius: 50%;
             width: 24px;
@@ -25,163 +34,203 @@
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
         .fade-in { animation: fadeIn 0.3s ease-in-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Reticle (Kotak target di kamera) */
+        .reticle-corner { position: absolute; width: 30px; height: 30px; border-color: rgba(255, 255, 255, 0.7); border-style: solid; }
+        .reticle-tl { top: 15%; left: 10%; border-width: 3px 0 0 3px; border-top-left-radius: 8px; }
+        .reticle-tr { top: 15%; right: 10%; border-width: 3px 3px 0 0; border-top-right-radius: 8px; }
+        .reticle-bl { bottom: 15%; left: 10%; border-width: 0 0 3px 3px; border-bottom-left-radius: 8px; }
+        .reticle-br { bottom: 15%; right: 10%; border-width: 0 3px 3px 0; border-bottom-right-radius: 8px; }
+        
+        /* Lightbox (Penampil Gambar Besar) */
+        #lightbox { transition: opacity 0.3s ease; }
+        #lightbox.show { opacity: 1; pointer-events: auto; }
+        #lightbox.hide { opacity: 0; pointer-events: none; }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col items-center py-6 px-4 sm:p-8">
+<body class="text-slate-800 flex flex-col items-center min-h-screen p-4 sm:p-8">
 
     <header class="w-full max-w-lg mb-6 flex items-center justify-between">
         <div>
-            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 <i class="ph-fill ph-scan text-blue-600"></i> SmartArchive
             </h1>
-            <p class="text-xs sm:text-sm text-slate-500 font-medium">Cloud OCR Document Scanner</p>
-        </div>
-        <div class="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-            <i class="ph ph-cloud-check text-xl"></i>
+            <p class="text-sm text-slate-500 font-medium mt-1">Multi-Page PDF & Cloud OCR</p>
         </div>
     </header>
 
-    <main class="w-full max-w-lg glass-panel rounded-2xl p-5 sm:p-7 relative overflow-hidden fade-in">
+    <main class="w-full max-w-lg glass-panel rounded-2xl p-5 sm:p-7 relative fade-in">
         
-        <div class="grid grid-cols-2 gap-3 mb-6 transition-all duration-300" id="actionButtons">
-            <button onclick="startCamera()" class="group flex flex-col items-center justify-center p-4 sm:p-6 rounded-xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md hover:bg-blue-50 transition-all text-slate-700">
-                <div class="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <i class="ph ph-camera text-2xl text-blue-600"></i>
+        <!-- Pilihan Aksi Utama -->
+        <div class="grid grid-cols-2 gap-3 mb-2" id="actionButtons">
+            <button onclick="startCamera()" class="group flex flex-col items-center justify-center p-6 rounded-xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md hover:bg-blue-50 transition-all text-slate-700">
+                <div class="h-14 w-14 bg-blue-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <i class="ph ph-camera text-3xl text-blue-600"></i>
                 </div>
                 <span class="font-semibold text-sm sm:text-base">Kamera</span>
-                <span class="text-[10px] sm:text-xs text-slate-400 mt-1 text-center">Scan langsung</span>
             </button>
             
-            <label for="imageUpload" class="group flex flex-col items-center justify-center p-4 sm:p-6 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md hover:bg-slate-50 transition-all text-slate-700 cursor-pointer">
-                <div class="h-12 w-12 bg-slate-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <i class="ph ph-image text-2xl text-slate-600"></i>
+            <label for="imageUpload" class="group flex flex-col items-center justify-center p-6 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md hover:bg-slate-50 transition-all text-slate-700 cursor-pointer">
+                <div class="h-14 w-14 bg-slate-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <i class="ph ph-image text-3xl text-slate-600"></i>
                 </div>
                 <span class="font-semibold text-sm sm:text-base">Galeri</span>
-                <span class="text-[10px] sm:text-xs text-slate-400 mt-1 text-center">Pilih file</span>
                 <input id="imageUpload" type="file" accept="image/*" class="hidden" onchange="handleImageUpload(event)" />
             </label>
         </div>
 
-        <div id="cameraContainer" class="hidden flex-col gap-3 mb-6 fade-in">
-            <div class="relative w-full bg-black rounded-xl overflow-hidden aspect-[3/4] sm:aspect-video flex items-center justify-center border border-slate-800 shadow-inner">
+        <!-- Area Kamera -->
+        <div id="cameraContainer" class="hidden flex-col gap-3 mb-4 fade-in">
+            <div class="relative w-full bg-black rounded-xl overflow-hidden aspect-[3/4] flex items-center justify-center shadow-inner">
+                <!-- Video stream (Object-cover agar tidak ada garis hitam, namun rasio HP tetap terjaga) -->
                 <video id="cameraStream" class="w-full h-full object-cover" autoplay playsinline muted></video>
-                <div class="absolute inset-0 pointer-events-none p-6 flex flex-col justify-between">
-                    <div class="flex justify-between w-full"><div class="w-8 h-8 border-t-4 border-l-4 border-white/70 rounded-tl-lg"></div><div class="w-8 h-8 border-t-4 border-r-4 border-white/70 rounded-tr-lg"></div></div>
-                    <div class="flex justify-center"><span class="bg-black/50 text-white/90 text-xs px-3 py-1 rounded-full backdrop-blur-sm">Arahkan ke dokumen</span></div>
-                    <div class="flex justify-between w-full"><div class="w-8 h-8 border-b-4 border-l-4 border-white/70 rounded-bl-lg"></div><div class="w-8 h-8 border-b-4 border-r-4 border-white/70 rounded-br-lg"></div></div>
+                
+                <!-- Kotak Bantuan A4 di Kamera -->
+                <div class="absolute inset-0 pointer-events-none">
+                    <div class="reticle-corner reticle-tl"></div>
+                    <div class="reticle-corner reticle-tr"></div>
+                    <div class="reticle-corner reticle-bl"></div>
+                    <div class="reticle-corner reticle-br"></div>
+                    <div class="absolute top-4 w-full text-center">
+                        <span class="bg-black/50 text-white/90 text-xs px-3 py-1 rounded-full backdrop-blur-sm shadow">Posisikan dokumen di dalam kotak</span>
+                    </div>
                 </div>
             </div>
             
             <div class="flex gap-3">
-                <button onclick="stopCamera()" class="flex-1 py-3 px-4 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition flex justify-center items-center gap-2">
-                    Batal
-                </button>
-                <button onclick="capturePhoto()" class="flex-[2] py-3 px-4 bg-blue-600 text-white font-semibold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition flex justify-center items-center gap-2 active:scale-95">
-                    <i class="ph-fill ph-aperture text-lg"></i> Jepret Foto
+                <button onclick="stopCamera()" class="flex-1 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition">Batal</button>
+                <button onclick="capturePhoto()" class="flex-[2] py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition flex justify-center items-center gap-2">
+                    <i class="ph-fill ph-aperture text-xl"></i> Jepret
                 </button>
             </div>
         </div>
-        
-        <canvas id="canvas" class="hidden"></canvas>
 
-        <div id="processingUI" class="hidden flex-col gap-4 mb-6 fade-in">
-            <div class="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
-                <img id="imagePreview" class="w-full h-auto max-h-[30vh] object-contain mx-auto" alt="Preview Dokumen" />
+        <!-- Status Loading Pemrosesan -->
+        <div id="loadingStatus" class="hidden flex-col items-center justify-center py-8 mb-2">
+            <div class="loader mb-4"></div>
+            <p id="statusText" class="text-sm font-semibold text-blue-700 text-center">Memproses Halaman...</p>
+        </div>
+
+        <!-- Hasil Ekstraksi (Akan Muncul Setelah Halaman 1 Selesai) -->
+        <div id="resultContainer" class="hidden fade-in flex-col gap-5 mt-4">
+            
+            <!-- Metadata Form -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+                    <i class="ph-fill ph-file-text text-blue-500 text-xl"></i>
+                    <h3 class="font-bold text-slate-800 text-sm">Informasi Dokumen (Dari Hal. 1)</h3>
+                </div>
                 
-                <div id="loadingOverlay" class="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 hidden">
-                    <div class="loader mb-3"></div>
-                    <p class="text-sm font-semibold text-blue-700" id="loadingText">Meningkatkan Kontras & Mempertajam...</p>
-                    <p class="text-xs text-slate-500 mt-1">Mengoptimalkan gambar untuk OCR</p>
-                </div>
-            </div>
-        </div>
-
-        <div id="resultContainer" class="hidden fade-in flex-col gap-4">
-            <div class="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
-                <i class="ph-fill ph-check-circle text-green-500 text-xl mt-0.5"></i>
-                <div>
-                    <h3 class="font-semibold text-green-800 text-sm">Pemindaian Berhasil</h3>
-                    <p class="text-xs text-green-600 mt-0.5">Periksa dan perbaiki data jika diperlukan sebelum menyimpan.</p>
-                </div>
-            </div>
-
-            <div class="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Order Number</label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="ph ph-hash text-slate-400"></i>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1 ml-1">Order Number</label>
+                        <div class="relative">
+                            <i class="ph ph-hash absolute left-3 top-3 text-slate-400"></i>
+                            <input type="text" id="orderNumberInput" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 font-medium" placeholder="Menunggu scan...">
                         </div>
-                        <input type="text" id="orderNumberInput" class="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-800 font-medium transition" placeholder="Nomor tidak ditemukan">
                     </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Shipment Date</label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="ph ph-calendar-blank text-slate-400"></i>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1 ml-1">Shipment Date</label>
+                        <div class="relative">
+                            <i class="ph ph-calendar-blank absolute left-3 top-3 text-slate-400"></i>
+                            <input type="text" id="shipmentDateInput" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 font-medium" placeholder="Menunggu scan...">
                         </div>
-                        <input type="text" id="shipmentDateInput" class="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-800 font-medium transition" placeholder="Tanggal tidak ditemukan">
                     </div>
                 </div>
             </div>
 
-            <details class="group bg-white border border-slate-200 rounded-lg overflow-hidden">
-                <summary class="flex items-center justify-between cursor-pointer p-3 text-xs font-medium text-slate-600 hover:bg-slate-50 list-none">
-                    <span class="flex items-center gap-2"><i class="ph ph-code"></i> Data Mentah (Debug)</span>
-                    <i class="ph ph-caret-down transition-transform group-open:rotate-180"></i>
-                </summary>
-                <div class="p-3 bg-slate-50 border-t border-slate-100">
-                    <div id="rawText" class="text-[10px] font-mono text-slate-500 h-24 overflow-y-auto whitespace-pre-wrap break-all"></div>
+            <!-- Galeri Halaman Scan -->
+            <div>
+                <div class="flex justify-between items-end mb-2 px-1">
+                    <h3 class="text-sm font-bold text-slate-800">Halaman Discan (<span id="pageCount">0</span>)</h3>
+                    <p class="text-[10px] text-slate-500">Klik gambar untuk memperbesar</p>
                 </div>
-            </details>
+                
+                <!-- Grid untuk menampung gambar-gambar yang sudah di scan -->
+                <div id="pagesGallery" class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    <!-- Thumbnail gambar akan di-generate di sini via JS -->
+                </div>
+            </div>
 
-            <div class="flex gap-3 mt-2">
-                <button onclick="resetUI(); document.getElementById('actionButtons').classList.remove('hidden');" class="px-4 py-3 bg-white border border-slate-300 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition">
-                    <i class="ph ph-arrow-counter-clockwise text-lg"></i>
+            <!-- Tombol Aksi Bawah -->
+            <div class="flex gap-3 pt-2">
+                <button onclick="startCamera()" class="flex-1 py-3 px-2 bg-blue-50 text-blue-700 font-semibold rounded-xl border border-blue-200 hover:bg-blue-100 transition flex justify-center items-center gap-1.5 text-sm">
+                    <i class="ph-bold ph-plus"></i> Tambah Hal
                 </button>
-                <button id="saveBtn" onclick="saveImage()" disabled class="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-semibold py-3 px-4 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-lg shadow-slate-200">
-                    <i class="ph-bold ph-download-simple"></i> Simpan Arsip
+                <button id="saveBtn" onclick="saveAsPDF()" class="flex-[2] bg-slate-900 hover:bg-black text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-slate-300 transition flex justify-center items-center gap-2 text-sm">
+                    <i class="ph-bold ph-file-pdf text-lg text-red-400"></i> Simpan PDF
                 </button>
             </div>
         </div>
-
     </main>
 
-    <footer class="mt-8 text-center text-xs text-slate-400">
-        <p>&copy; 2026 SmartArchive Internal Tool</p>
-    </footer>
+    <!-- Lightbox (Penampil Gambar Besar) -->
+    <div id="lightbox" class="hide fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4">
+        <!-- Tombol Tutup -->
+        <button onclick="closeLightbox()" class="absolute top-4 right-4 sm:top-8 sm:right-8 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full text-white flex items-center justify-center transition backdrop-blur">
+            <i class="ph ph-x text-2xl"></i>
+        </button>
+        
+        <!-- Gambar Besar -->
+        <img id="lightboxImage" src="" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl" alt="Preview Dokumen Detail">
+        
+        <p class="text-white/60 text-sm mt-4">Ketuk layar di luar gambar untuk menutup</p>
+    </div>
 
     <script>
-        let currentImageBase64 = null;
-        let originalFileExtension = 'png';
+        // --- KONFIGURASI ---
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwr6T6Q0dWXinD_hNYlUuORtnKrTCDBUkUwSfpkK70uKFIA2-Q9DzrLgprN45aRpkWB/exec";
+        
+        // --- STATE APLIKASI ---
+        let scannedPages = []; // Array untuk menampung base64 gambar beresolusi tinggi (A4)
         let videoStream = null;
 
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwr6T6Q0dWXinD_hNYlUuORtnKrTCDBUkUwSfpkK70uKFIA2-Q9DzrLgprN45aRpkWB/exec";
+        // --- MANAJEMEN LIGHTBOX (View Gambar Besar) ---
+        const lightbox = document.getElementById('lightbox');
+        const lightboxImg = document.getElementById('lightboxImage');
 
+        function openLightbox(base64Src) {
+            lightboxImg.src = base64Src;
+            lightbox.classList.remove('hide');
+            lightbox.classList.add('show');
+        }
+
+        function closeLightbox() {
+            lightbox.classList.remove('show');
+            lightbox.classList.add('hide');
+            setTimeout(() => { lightboxImg.src = ''; }, 300); // Bersihkan memori src setelah animasi
+        }
+
+        // Tutup lightbox jika user klik area gelap (background)
+        lightbox.addEventListener('click', function(e) {
+            if(e.target === lightbox) closeLightbox();
+        });
+
+        // --- MANAJEMEN KAMERA ---
+        
         async function startCamera() {
             const cameraContainer = document.getElementById('cameraContainer');
             const video = document.getElementById('cameraStream');
             const actionButtons = document.getElementById('actionButtons');
+            const resultContainer = document.getElementById('resultContainer');
+            
             try {
+                // Meminta resolusi 4K agar kamera HP menggunakan lensa paling optimal tanpa zoom memotong
                 videoStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        facingMode: 'environment',
-                        width: { ideal: 4096 },
-                        height: { ideal: 2160 }
-                    } 
+                    video: { facingMode: 'environment', width: { ideal: 4096 }, height: { ideal: 2160 } } 
                 });
                 video.srcObject = videoStream;
-                actionButtons.classList.add('hidden');
+                
                 cameraContainer.classList.remove('hidden');
                 cameraContainer.classList.add('flex');
-                resetUI();
+                actionButtons.classList.add('hidden');
+                resultContainer.classList.add('hidden');
             } catch (err) {
                 console.error("Gagal akses kamera:", err);
-                alert("Tidak dapat mengakses kamera. Pastikan izin diberikan.");
+                alert("Kamera tidak dapat diakses. Pastikan izin kamera diaktifkan di browser Anda.");
             }
         }
 
@@ -192,44 +241,71 @@
             }
             document.getElementById('cameraContainer').classList.remove('flex');
             document.getElementById('cameraContainer').classList.add('hidden');
-            document.getElementById('actionButtons').classList.remove('hidden');
+            
+            // Tampilkan kembali hasil scan jika sudah ada halaman, jika belum, tampilkan tombol awal
+            if(scannedPages.length > 0) {
+                document.getElementById('resultContainer').classList.remove('hidden');
+            } else {
+                document.getElementById('actionButtons').classList.remove('hidden');
+            }
+        }
+
+        // Fungsi Pintar: Crop ke Rasio A4
+        function cropToA4(sourceElement, sourceWidth, sourceHeight) {
+            // A4 Ratio = 1 : 1.414 (Portrait)
+            // Jika orientasi gambar horizontal (landscape), kita jadikan 1.414 : 1
+            const isPortrait = sourceHeight >= sourceWidth;
+            const targetRatio = isPortrait ? (1 / 1.414) : 1.414;
+            const currentRatio = sourceWidth / sourceHeight;
+            
+            let cropWidth = sourceWidth;
+            let cropHeight = sourceHeight;
+            let startX = 0;
+            let startY = 0;
+
+            // Perhitungan Center Crop
+            if (currentRatio > targetRatio) {
+                // Terlalu lebar -> Potong Kiri Kanan
+                cropWidth = sourceHeight * targetRatio;
+                startX = (sourceWidth - cropWidth) / 2;
+            } else if (currentRatio < targetRatio) {
+                // Terlalu tinggi -> Potong Atas Bawah
+                cropHeight = sourceWidth / targetRatio;
+                startY = (sourceHeight - cropHeight) / 2;
+            }
+
+            // Batasi ukuran piksel maksimal (misal max tinggi 2500px) agar RAM tidak jebol, namun tetap super tajam
+            let scale = 1;
+            let maxDim = Math.max(cropWidth, cropHeight);
+            if (maxDim > 2500) scale = 2500 / maxDim;
+
+            const finalWidth = cropWidth * scale;
+            const finalHeight = cropHeight * scale;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = finalWidth;
+            canvas.height = finalHeight;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Gambar bagian yang terpotong ke kanvas akhir
+            ctx.drawImage(sourceElement, startX, startY, cropWidth, cropHeight, 0, 0, finalWidth, finalHeight);
+            
+            // Kembalikan gambar berkualitas tertinggi (1.0)
+            return canvas.toDataURL('image/jpeg', 1.0);
         }
 
         function capturePhoto() {
             const video = document.getElementById('cameraStream');
-            const canvas = document.getElementById('canvas');
+            // Jika video belum ada dimensinya, jangan paksa foto
+            if(!video.videoWidth) return; 
             
-            const vw = video.videoWidth;
-            const vh = video.videoHeight;
-            
-            const targetRatio = 1 / 1.414;
-            const currentRatio = vw / vh;
-            
-            let cropWidth = vw;
-            let cropHeight = vh;
-            let startX = 0;
-            let startY = 0;
-
-            if (currentRatio > targetRatio) {
-                cropWidth = vh * targetRatio;
-                startX = (vw - cropWidth) / 2;
-            } else if (currentRatio < targetRatio) {
-                cropHeight = vw / targetRatio;
-                startY = (vh - cropHeight) / 2;
-            }
-
-            canvas.width = cropWidth;
-            canvas.height = cropHeight;
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(video, startX, startY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
-            
-            const base64Img = canvas.toDataURL('image/jpeg', 1.0);
-            originalFileExtension = 'jpg';
-            
+            // Gunting rasio A4 dari kamera
+            const base64A4Image = cropToA4(video, video.videoWidth, video.videoHeight);
             stopCamera();
-            processImageFlow(base64Img);
+            processPageFlow(base64A4Image);
         }
 
         function handleImageUpload(event) {
@@ -237,253 +313,233 @@
             if (!file) return;
 
             document.getElementById('actionButtons').classList.add('hidden');
-            resetUI();
-            const fileNameParts = file.name.split('.');
-            if(fileNameParts.length > 1) originalFileExtension = fileNameParts.pop().toLowerCase();
-
+            
             const reader = new FileReader();
             reader.onload = function(e) {
-                processImageFlow(e.target.result);
+                const img = new Image();
+                img.onload = function() {
+                    // Gunting rasio A4 dari gambar galeri
+                    const base64A4Image = cropToA4(img, img.width, img.height);
+                    processPageFlow(base64A4Image);
+                }
+                img.src = e.target.result;
             }
             reader.readAsDataURL(file);
         }
 
-        function resetUI() {
-            document.getElementById('resultContainer').classList.add('hidden');
-            document.getElementById('resultContainer').classList.remove('flex');
-            document.getElementById('processingUI').classList.add('hidden');
-            document.getElementById('processingUI').classList.remove('flex');
-            document.getElementById('saveBtn').disabled = true;
-            document.getElementById('orderNumberInput').value = '';
-            document.getElementById('shipmentDateInput').value = '';
-            document.getElementById('rawText').innerText = '';
-        }
-
-        // --- ALGORITMA PENINGKATAN GAMBAR MURNI JS (Tanpa Hitam Putih) ---
-
-        // Fungsi untuk menaikkan kontras warna (Color Contrast)
-        function applyContrast(imageData, contrast) {
-            let data = imageData.data;
-            // Rumus standar peningkatan kontras piksel
-            let factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-
-            for (let i = 0; i < data.length; i += 4) {
-                data[i] = factor * (data[i] - 128) + 128;     // Red
-                data[i+1] = factor * (data[i+1] - 128) + 128; // Green
-                data[i+2] = factor * (data[i+2] - 128) + 128; // Blue
-            }
-            return imageData;
-        }
-
-        // Fungsi untuk mempertajam pinggiran gambar (Sharpen Convolution Kernel)
-        function applySharpen(ctx, w, h) {
-            let imageData = ctx.getImageData(0, 0, w, h);
-            let data = imageData.data;
-            let buff = new Uint8ClampedArray(data); // Salin sebagai referensi piksel asli
-            
-            // Matriks kernel sharpening
-            let weights = [
-                 0, -1,  0,
-                -1,  5, -1,
-                 0, -1,  0
-            ];
-            let side = Math.round(Math.sqrt(weights.length));
-            let halfSide = Math.floor(side / 2);
-            
-            let alphaFac = 1; // Ketebalan sharpen
-            
-            for (let y = 0; y < h; y++) {
-                for (let x = 0; x < w; x++) {
-                    let dstOff = (y * w + x) * 4;
-                    let r = 0, g = 0, b = 0;
-                    
-                    for (let cy = 0; cy < side; cy++) {
-                        for (let cx = 0; cx < side; cx++) {
-                            let scy = y + cy - halfSide;
-                            let scx = x + cx - halfSide;
-                            if (scy >= 0 && scy < h && scx >= 0 && scx < w) {
-                                let srcOff = (scy * w + scx) * 4;
-                                let wt = weights[cy * side + cx];
-                                r += buff[srcOff] * wt;
-                                g += buff[srcOff + 1] * wt;
-                                b += buff[srcOff + 2] * wt;
-                            }
-                        }
-                    }
-                    data[dstOff] = r * alphaFac;
-                    data[dstOff + 1] = g * alphaFac;
-                    data[dstOff + 2] = b * alphaFac;
-                }
-            }
-            ctx.putImageData(imageData, 0, 0);
-        }
-
-        // Memuat Base64 ke dalam Canvas tersembunyi untuk diproses warnanya
-        async function enhanceImageColor(base64Src) {
+        // --- PENINGKATAN KUALITAS JS MURNI (Warna Dipertahankan, Kontras & Tajam Dinaikkan) ---
+        async function enhanceImage(base64Src) {
             return new Promise((resolve) => {
                 let img = new Image();
                 img.onload = () => {
-                    let cvs = document.createElement('canvas');
-                    let c = cvs.getContext('2d', { willReadFrequently: true });
+                    let canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    let ctx = canvas.getContext('2d', { willReadFrequently: true });
+                    ctx.drawImage(img, 0, 0);
+
+                    // Ambil raw pixel data
+                    let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    let data = imgData.data;
+
+                    // 1. TINGKATKAN KONTRAS (Faktor Kontras ~ 60)
+                    let contrast = 60; 
+                    let factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
                     
-                    // Kita tidak perlu memproses gambar 4K untuk OCR (terlalu berat untuk CPU JS biasa)
-                    // Kita perkecil (resize) secara proporsional ke lebar max ~1500px agar cepat dan tetap tajam
-                    let maxW = 1500;
-                    let scale = 1;
-                    if(img.width > maxW) {
-                        scale = maxW / img.width;
+                    // 2. SHARPEN KERNEL (Untuk mempertegas tinta teks)
+                    // Menggunakan Salinan untuk referensi kernel
+                    let buff = new Uint8ClampedArray(data); 
+                    let w = canvas.width;
+                    let h = canvas.height;
+                    let weights = [ 0, -1, 0, -1, 5, -1, 0, -1, 0 ];
+                    let side = 3;
+                    let halfSide = 1;
+
+                    // Loop Piksel untuk Kontras DAN Sharpen sekaligus
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            let dstOff = (y * w + x) * 4;
+                            
+                            // Terapkan Sharpen (Konvolusi)
+                            let r = 0, g = 0, b = 0;
+                            for (let cy = 0; cy < side; cy++) {
+                                for (let cx = 0; cx < side; cx++) {
+                                    let scy = y + cy - halfSide;
+                                    let scx = x + cx - halfSide;
+                                    if (scy >= 0 && scy < h && scx >= 0 && scx < w) {
+                                        let srcOff = (scy * w + scx) * 4;
+                                        let wt = weights[cy * side + cx];
+                                        r += buff[srcOff] * wt;
+                                        g += buff[srcOff + 1] * wt;
+                                        b += buff[srcOff + 2] * wt;
+                                    }
+                                }
+                            }
+
+                            // Terapkan Kontras pada hasil sharpen
+                            data[dstOff] = factor * (r - 128) + 128;     // Red
+                            data[dstOff + 1] = factor * (g - 128) + 128; // Green
+                            data[dstOff + 2] = factor * (b - 128) + 128; // Blue
+                            // Alpha dibiarkan data[dstOff + 3]
+                        }
                     }
-                    
-                    cvs.width = img.width * scale;
-                    cvs.height = img.height * scale;
-                    
-                    c.drawImage(img, 0, 0, cvs.width, cvs.height);
-                    
-                    // 1. Naikkan Kontras Warna (nilai 0-255, misal: 40 agar warna menonjol tapi tidak aneh)
-                    let imgData = c.getImageData(0, 0, cvs.width, cvs.height);
-                    imgData = applyContrast(imgData, 50); // 50 adalah tingkat kontras (cukup tinggi)
-                    c.putImageData(imgData, 0, 0);
-                    
-                    // 2. Pertajam Tepi (Sharpen) agar teks tinta lebih "keras" (opsional, kadang lambat di HP jadul)
-                    applySharpen(c, cvs.width, cvs.height);
-                    
-                    // Ekspor kembali ke JPG berkualitas tinggi
-                    resolve(cvs.toDataURL('image/jpeg', 1.0));
+
+                    ctx.putImageData(imgData, 0, 0);
+                    resolve(canvas.toDataURL('image/jpeg', 0.9)); // Kualitas 90% setelah dienhance untuk hemat memory
                 };
                 img.src = base64Src;
             });
         }
 
-        // --- Alur Pemrosesan Utama ---
+        // --- ALUR PEMROSESAN HALAMAN ---
+        async function processPageFlow(rawBase64) {
+            const loadingStatus = document.getElementById('loadingStatus');
+            const statusText = document.getElementById('statusText');
+            
+            loadingStatus.classList.remove('hidden');
+            loadingStatus.classList.add('flex');
+            
+            const isFirstPage = scannedPages.length === 0;
 
-        async function processImageFlow(base64Image) {
-            const processingUI = document.getElementById('processingUI');
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            const loadingText = document.getElementById('loadingText');
-            const imgPreview = document.getElementById('imagePreview');
+            // Tahap 1: Peningkatan Visual (Crop A4 sudah di fungsi sebelumnya)
+            statusText.innerText = "Memperjelas gambar dan mempertajam teks...";
+            await new Promise(r => setTimeout(r, 50)); // Jeda untuk render UI
             
-            processingUI.classList.remove('hidden');
-            processingUI.classList.add('flex');
-            loadingOverlay.classList.remove('hidden');
+            const enhancedBase64 = await enhanceImage(rawBase64);
+            scannedPages.push(enhancedBase64); // Simpan ke memori galeri
             
-            // Tampilkan foto asli sementara memproses Enhancement
-            imgPreview.src = base64Image;
+            // Tahap 2: OCR Cloud (HANYA UNTUK HALAMAN PERTAMA)
+            if (isFirstPage) {
+                statusText.innerText = "Cloud AI sedang membaca dokumen (OCR)...";
+                await performCloudOCR(enhancedBase64);
+            }
 
-            loadingText.innerText = "Memperjelas warna dan teks...";
-            // Beri jeda kecil agar Browser sempat menampilkan teks Loading sebelum CPU JS bekerja keras
-            await new Promise(r => setTimeout(r, 50)); 
+            // Update UI Galeri
+            updateGalleryUI();
             
-            // LAKUKAN PENINGKATAN WARNA & KETAJAMAN
-            let enhancedBase64 = await enhanceImageColor(base64Image);
-            currentImageBase64 = enhancedBase64;
-            
-            // Update preview ke gambar yang sudah di-enhance (Anda akan melihat bedanya)
-            imgPreview.src = currentImageBase64;
-
-            // Lanjut ke OCR
-            loadingText.innerText = "Menganalisis Cloud AI...";
-            await performCloudOCR(currentImageBase64);
-            
-            loadingOverlay.classList.add('hidden');
+            loadingStatus.classList.remove('flex');
+            loadingStatus.classList.add('hidden');
+            document.getElementById('resultContainer').classList.remove('hidden');
+            document.getElementById('resultContainer').classList.add('flex');
         }
 
-        // --- Fungsi API ke Google Apps Script ---
+        function updateGalleryUI() {
+            document.getElementById('pageCount').innerText = scannedPages.length;
+            const gallery = document.getElementById('pagesGallery');
+            gallery.innerHTML = ''; // Bersihkan
 
-        async function performCloudOCR(imageSrc) {
+            scannedPages.forEach((base64Src, index) => {
+                // Buat elemen thumbnail
+                const thumbDiv = document.createElement('div');
+                thumbDiv.className = "relative aspect-[1/1.414] bg-slate-200 rounded-lg overflow-hidden border border-slate-300 shadow-sm cursor-pointer hover:border-blue-500 hover:ring-2 hover:ring-blue-200 transition group";
+                
+                // Jika di-klik, buka Lightbox besar
+                thumbDiv.onclick = () => openLightbox(base64Src);
+
+                thumbDiv.innerHTML = `
+                    <img src="${base64Src}" class="w-full h-full object-cover" />
+                    <div class="absolute bottom-0 inset-x-0 bg-black/60 backdrop-blur-sm text-white text-[10px] text-center py-1 font-medium">
+                        Hal. ${index + 1}
+                    </div>
+                    <div class="absolute inset-0 bg-blue-500/0 group-hover:bg-blue-500/10 transition flex items-center justify-center">
+                        <i class="ph-fill ph-magnifying-glass-plus text-white opacity-0 group-hover:opacity-100 text-xl drop-shadow-md transition"></i>
+                    </div>
+                `;
+                gallery.appendChild(thumbDiv);
+            });
+        }
+
+        // --- BACKEND OCR (APPS SCRIPT / GOOGLE VISION) ---
+        async function performCloudOCR(base64Src) {
             try {
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
-                    body: JSON.stringify({ image: imageSrc }),
+                    body: JSON.stringify({ image: base64Src }),
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' }
                 });
 
                 const data = await response.json();
-
                 if (data.success) {
-                    const text = data.text;
-                    if (!text) {
-                        alert("Tidak ada teks yang terdeteksi di dokumen ini.");
-                        document.getElementById('rawText').innerText = "Teks kosong.";
-                        showResults();
-                        return;
-                    }
-
-                    document.getElementById('rawText').innerText = text; 
-                    extractDataPintar(text);
+                    extractSmartData(data.text);
                 } else {
-                    console.error("API Error:", data.error);
-                    alert("Gagal memproses di server: " + data.error);
+                    console.error("OCR API Error:", data.error);
                 }
-
             } catch (error) {
                 console.error("Fetch Error:", error);
-                alert("Gagal terhubung ke Cloud. Pastikan koneksi internet aktif.");
-            } finally {
-                showResults();
+                alert("Gagal menghubungi server pembaca teks. Gunakan data manual.");
             }
         }
 
-        function showResults() {
-            const resContainer = document.getElementById('resultContainer');
-            resContainer.classList.remove('hidden');
-            resContainer.classList.add('flex');
-            document.getElementById('saveBtn').disabled = false;
-        }
-
-        function extractDataPintar(text) {
+        function extractSmartData(text) {
+            // REGEX PINTAR BARU (Tahan banting terhadap format)
+            // Mengabaikan kata "Order/Packing", langsung mencari pola: 181- diikuti 8-15 angka
             let orderNo = "";
-            let shipDate = "";
-
-            const orderPolaKuat = /(?:181\-)[0-9]{8,15}/g; 
-            const foundOrders = text.match(orderPolaKuat);
+            const strictOrderRegex = /(?:181\-)[0-9]{8,15}/g;
+            const orderMatches = text.match(strictOrderRegex);
             
-            if (foundOrders && foundOrders.length > 0) {
-                orderNo = foundOrders[0];
+            if(orderMatches && orderMatches.length > 0) {
+                orderNo = orderMatches[0]; // Ambil yang pertama ketemu
             } else {
-                const orderCadanganRegex = /Order\s*#?[\s\S]{0,50}?([a-zA-Z0-9\-]{8,20})/i;
-                const matchCadangan = text.match(orderCadanganRegex);
-                if (matchCadangan && matchCadangan[1] && matchCadangan[1].length > 5) {
-                    if(!matchCadangan[1].toUpperCase().includes("PACKING")) {
-                        orderNo = matchCadangan[1].trim();
-                    }
-                }
+                // Cadangan: Cari format Order # ...
+                const fallbackOrderRegex = /(?:Order|0rder)\s*#?\s*[:\-]?\s*([A-Za-z0-9\-]+)/i;
+                const fallbackMatch = text.match(fallbackOrderRegex);
+                if(fallbackMatch && fallbackMatch[1]) orderNo = fallbackMatch[1].trim();
             }
 
-            const dateRegex = /Shipment[\s\S]{0,30}Date[\s\S]{0,20}?([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})/i;
+            // Mencari Tanggal (Lebih luwes menangkap format DD/MM/YYYY)
+            let shipDate = "";
+            const dateRegex = /(?:Shipment|Shiprnent|Shtptnent)\s*(?:Date|Dato)\s*[:\-]?\s*([0-9A-Za-z\/\-\.]+)/i;
             const dateMatch = text.match(dateRegex);
-
-            if (dateMatch && dateMatch[1]) {
+            
+            if(dateMatch && dateMatch[1]) {
                 shipDate = dateMatch[1].trim();
             } else {
-                const sembarangTanggal = /([0-9]{2}\/[0-9]{2}\/[0-9]{4})/;
-                const matchSembarang = text.match(sembarangTanggal);
-                if(matchSembarang) shipDate = matchSembarang[1];
+                // Cadangan: Cari pola mirip tanggal (dd/mm/yyyy) di manapun di teks
+                const fallbackDate = /([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})/;
+                const fbDateMatch = text.match(fallbackDate);
+                if(fbDateMatch && fbDateMatch[1]) shipDate = fbDateMatch[1];
             }
 
             document.getElementById('orderNumberInput').value = orderNo || "Tidak ditemukan";
             document.getElementById('shipmentDateInput').value = shipDate || "Tidak ditemukan";
         }
 
-        function saveImage() {
-            if (!currentImageBase64) return;
+        // --- EKSPOR KE PDF (Multi-Halaman) ---
+        function saveAsPDF() {
+            if (scannedPages.length === 0) return;
 
+            // Ambil library jsPDF
+            const { jsPDF } = window.jspdf;
+            
+            // Format A4, portrait, satuan milimeter
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = 210;
+            const pageHeight = 297;
+
+            // Loop dan tambahkan setiap halaman gambar ke PDF
+            for(let i = 0; i < scannedPages.length; i++) {
+                if (i > 0) {
+                    doc.addPage(); // Tambah halaman baru jika bukan gambar pertama
+                }
+                
+                // Masukkan gambar (memenuhi 100% dimensi A4 karena sudah kita crop di rasio yang sama)
+                doc.addImage(scannedPages[i], 'JPEG', 0, 0, pageWidth, pageHeight);
+            }
+
+            // Siapkan Nama File
             let orderNo = document.getElementById('orderNumberInput').value.trim();
             let shipDate = document.getElementById('shipmentDateInput').value.trim();
 
-            if (!orderNo || orderNo === "Tidak ditemukan") orderNo = "UnknownOrder";
-            if (!shipDate || shipDate === "Tidak ditemukan") shipDate = "UnknownDate";
+            if (!orderNo || orderNo === "Tidak ditemukan") orderNo = "Arsip";
+            if (!shipDate || shipDate === "Tidak ditemukan") shipDate = "Dokumen";
 
-            shipDate = shipDate.replace(/[\/\\]/g, '-'); 
-            orderNo = orderNo.replace(/[^a-zA-Z0-9\-]/g, ''); 
+            shipDate = shipDate.replace(/[\/\\]/g, '-'); // Bersihkan garis miring
+            orderNo = orderNo.replace(/[^a-zA-Z0-9\-]/g, ''); // Bersihkan karakter aneh
             
-            const newFileName = `Order_${orderNo}_Date_${shipDate}.${originalFileExtension}`;
+            const newFileName = `${orderNo}_Date_${shipDate}.pdf`;
 
-            const link = document.createElement('a');
-            link.href = currentImageBase64;
-            link.download = newFileName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            // Proses Download otomatis
+            doc.save(newFileName);
         }
     </script>
 </body>
