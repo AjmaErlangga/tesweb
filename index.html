@@ -187,9 +187,14 @@
             const video = document.getElementById('cameraStream');
             const actionButtons = document.getElementById('actionButtons');
             try {
-                // Gunakan object-cover dan resolusi wajar untuk tampilan responsif
+                // PERBAIKAN ZOOM: Minta resolusi tertinggi yang mungkin tanpa memaksa rasio spesifik.
+                // Ini akan menggunakan seluruh sensor kamera yang tersedia.
                 videoStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment', width: { ideal: 1280 } } 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 4096 }, // Minta resolusi sangat tinggi (4K), browser akan menyesuaikan max HP
+                        height: { ideal: 2160 }
+                    } 
                 });
                 video.srcObject = videoStream;
                 actionButtons.classList.add('hidden');
@@ -216,27 +221,46 @@
             const video = document.getElementById('cameraStream');
             const canvas = document.getElementById('canvas');
             
-            let vw = video.videoWidth;
-            let vh = video.videoHeight;
+            // Ambil resolusi asli video yang masuk
+            const vw = video.videoWidth;
+            const vh = video.videoHeight;
             
-            // Batasi agar tidak terlalu berat dikirim ke API
-            const MAX_RES = 1600; 
-            if (vw > MAX_RES || vh > MAX_RES) {
-                const ratio = Math.min(MAX_RES / vw, MAX_RES / vh);
-                vw = Math.round(vw * ratio);
-                vh = Math.round(vh * ratio);
+            // PERBAIKAN UKURAN A4: Menghitung rasio dan memotong bagian tengah
+            // Rasio A4 adalah sekitar 1 : 1.414 (Lebar : Tinggi)
+            const targetRatio = 1 / 1.414;
+            const currentRatio = vw / vh;
+            
+            let cropWidth = vw;
+            let cropHeight = vh;
+            let startX = 0;
+            let startY = 0;
+
+            if (currentRatio > targetRatio) {
+                // Gambar terlalu lebar (landscape/terpotong atas bawah di layar HP), potong lebarnya
+                cropWidth = vh * targetRatio;
+                startX = (vw - cropWidth) / 2;
+            } else if (currentRatio < targetRatio) {
+                // Gambar terlalu tinggi, potong tingginya
+                cropHeight = vw / targetRatio;
+                startY = (vh - cropHeight) / 2;
             }
-            
-            canvas.width = vw || 1024;
-            canvas.height = vh || 768;
+
+            // Setel ukuran kanvas persis ke ukuran potong A4
+            canvas.width = cropWidth;
+            canvas.height = cropHeight;
             
             const ctx = canvas.getContext('2d');
+            
+            // Gambar warna putih di latar belakang agar bersih
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // Kompresi jpeg 0.8 sudah cukup tajam untuk API Google
-            const base64Img = canvas.toDataURL('image/jpeg', 0.8);
+            // Gambar (dan secara implisit memotong) dari video stream ke canvas
+            // Parameter: drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+            ctx.drawImage(video, startX, startY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+            
+            // PERBAIKAN KEJELASAN FOTO: Gunakan JPEG Quality 1.0 (100%) agar teks tidak blur karena kompresi
+            const base64Img = canvas.toDataURL('image/jpeg', 1.0);
             originalFileExtension = 'jpg';
             
             stopCamera();
