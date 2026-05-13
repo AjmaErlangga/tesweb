@@ -6,10 +6,6 @@
     <title>Aplikasi Arsip Dokumen OCR</title>
     <!-- Menggunakan Tailwind CSS untuk styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Menggunakan Tesseract.js untuk OCR -->
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-    <!-- Menggunakan OpenCV.js untuk Auto Crop / Edge Detection / Contrast -->
-    <script async src="https://docs.opencv.org/4.8.0/opencv.js" type="text/javascript"></script>
     
     <style>
         .loader {
@@ -29,19 +25,12 @@
 <body class="bg-gray-100 min-h-screen font-sans text-gray-800 p-4 sm:p-8">
 
     <div class="max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8 relative">
-        
-        <!-- Overlay Loading OpenCV (Muncul saat pertama buka web) -->
-        <div id="opencvLoadingMsg" class="absolute inset-0 bg-white/90 z-50 rounded-xl flex flex-col items-center justify-center">
-            <div class="loader mb-4"></div>
-            <p class="text-blue-600 font-bold text-center">Memuat Modul Scanner Pintar...</p>
-            <p class="text-gray-500 text-xs mt-2 px-4 text-center">Mengunduh modul deteksi tepi otomatis (OpenCV).<br>Harap tunggu sebentar.</p>
-        </div>
 
-        <h1 class="text-2xl font-bold text-center text-blue-600 mb-2">Scanner Arsip Otomatis</h1>
-        <p class="text-center text-gray-500 mb-8 text-sm">Upload foto dokumen. Sistem akan memotong (auto-crop) bagian kertas dan mengekstrak Order # serta Shipment Date.</p>
+        <h1 class="text-2xl font-bold text-center text-blue-600 mb-2">Scanner Arsip (Google Vision)</h1>
+        <p class="text-center text-gray-500 mb-8 text-sm">Upload foto dokumen untuk mengekstrak Order # dan Shipment Date menggunakan teknologi Google Cloud AI.</p>
 
         <!-- Pilihan Aksi -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 opacity-50 pointer-events-none transition-opacity duration-300" id="actionButtons">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 transition-opacity duration-300" id="actionButtons">
             <button onclick="startCamera()" class="flex flex-col items-center justify-center py-8 border-2 border-blue-400 rounded-xl bg-blue-50 hover:bg-blue-100 transition text-blue-700 font-semibold shadow-sm">
                 <svg aria-hidden="true" class="w-12 h-12 mb-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                 Buka Kamera HP
@@ -56,13 +45,10 @@
 
         <!-- Area Kamera -->
         <div id="cameraContainer" class="hidden mb-6 rounded-xl overflow-hidden bg-black border-2 border-gray-800 shadow-lg flex-col">
-            <!-- Container Video -->
             <div class="relative w-full bg-black flex items-center justify-center min-h-[40vh]">
-                <!-- object-contain mencegah crop/zoom. muted ditambahkan agar jalan di iOS/Safari -->
                 <video id="cameraStream" class="w-full max-h-[60vh] object-contain" autoplay playsinline muted></video>
-                <div class="absolute inset-0 border-4 border-blue-500/50 m-2 sm:m-4 rounded pointer-events-none"></div>
+                <!-- Garis bantu dihapus karena tidak ada auto-crop lagi, cukup fokuskan tulisan ke tengah -->
             </div>
-            <!-- Container Tombol -->
             <div class="p-4 bg-gray-900 flex justify-center gap-3 sm:gap-4 w-full">
                 <button onclick="stopCamera()" class="bg-gray-700 text-white font-semibold py-2 px-4 sm:px-6 rounded-full shadow-lg hover:bg-gray-600 border border-gray-500 text-sm sm:text-base">
                     Batal
@@ -77,15 +63,14 @@
 
         <!-- Preview Gambar -->
         <div id="previewContainer" class="hidden mb-6">
-            <p class="font-semibold text-sm mb-2 text-gray-700">Preview Dokumen (Mode Fotokopi Jelas):</p>
+            <p class="font-semibold text-sm mb-2 text-gray-700">Preview Dokumen Asli:</p>
             <img id="imagePreview" class="max-w-full h-auto rounded border-2 border-blue-200 shadow-sm" alt="Preview Dokumen" />
-            <p id="cropStatusLabel" class="text-xs text-green-600 font-medium mt-1 hidden">✓ Kertas diratakan dan dikonversi ke hitam-putih pekat.</p>
         </div>
 
         <!-- Status Loading Pemrosesan -->
         <div id="loadingStatus" class="hidden flex flex-col items-center justify-center mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
             <div class="loader mb-3"></div>
-            <p id="statusText" class="text-sm font-medium text-yellow-700 text-center">Sedang memproses...</p>
+            <p id="statusText" class="text-sm font-medium text-yellow-700 text-center">Menghubungkan ke Google AI Cloud... <br><span class='text-xs font-normal'>Memindai teks pada dokumen.</span></p>
         </div>
 
         <!-- Hasil Ekstraksi -->
@@ -120,17 +105,9 @@
         let currentImageBase64 = null;
         let originalFileExtension = 'png';
         let videoStream = null;
-        let isCvReady = false;
 
-        // Cek secara berkala apakah OpenCV sudah siap diload
-        let cvCheckInterval = setInterval(() => {
-            if (typeof cv !== 'undefined' && cv.Mat) {
-                clearInterval(cvCheckInterval);
-                isCvReady = true;
-                document.getElementById('opencvLoadingMsg').style.display = 'none';
-                document.getElementById('actionButtons').classList.remove('opacity-50', 'pointer-events-none');
-            }
-        }, 500);
+        // URL Google Apps Script yang baru saja Anda buat
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwr6T6Q0dWXinD_hNYlUuORtnKrTCDBUkUwSfpkK70uKFIA2-Q9DzrLgprN45aRpkWB/exec";
 
         // --- Fungsi UI & Kamera Dasar ---
         
@@ -170,7 +147,8 @@
             let vw = video.videoWidth;
             let vh = video.videoHeight;
             
-            const MAX_RES = 2560; 
+            // Batasi maksimal resolusi. Cloud Vision membatasi ukuran file agar tidak terlalu besar
+            const MAX_RES = 1600; 
             if (vw > MAX_RES || vh > MAX_RES) {
                 const ratio = Math.min(MAX_RES / vw, MAX_RES / vh);
                 vw = Math.round(vw * ratio);
@@ -186,7 +164,8 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            const base64Img = canvas.toDataURL('image/jpeg', 1.0);
+            // Konversi ke base64
+            const base64Img = canvas.toDataURL('image/jpeg', 0.9);
             originalFileExtension = 'jpg';
             
             stopCamera();
@@ -211,7 +190,6 @@
         function resetUI() {
             document.getElementById('resultContainer').classList.add('hidden');
             document.getElementById('previewContainer').classList.add('hidden');
-            document.getElementById('cropStatusLabel').classList.add('hidden');
             document.getElementById('loadingStatus').classList.add('hidden'); 
             document.getElementById('saveBtn').disabled = true;
             document.getElementById('orderNumberInput').value = '';
@@ -219,206 +197,72 @@
             document.getElementById('rawText').innerText = '';
         }
 
-        // --- Alur Pemrosesan Utama (Tingkatkan Kontras -> OCR) ---
+        // --- Alur Pemrosesan (Langsung ke Cloud Vision via Apps Script) ---
 
-        async function processImageFlow(originalBase64) {
+        async function processImageFlow(base64Image) {
             const loadingStatus = document.getElementById('loadingStatus');
-            const statusText = document.getElementById('statusText');
-            
             loadingStatus.classList.remove('hidden');
             
+            // Tampilkan foto asli langsung
             const imgPreview = document.getElementById('imagePreview');
-            imgPreview.src = originalBase64;
+            imgPreview.src = base64Image;
             document.getElementById('previewContainer').classList.remove('hidden');
             
-            statusText.innerText = "Menerapkan Adaptive Thresholding (Mode Fotokopi)...";
-            await new Promise(r => setTimeout(r, 100)); 
-            
-            let finalImageBase64 = originalBase64;
+            currentImageBase64 = base64Image;
 
-            if (isCvReady) {
-                try {
-                    const enhancedResult = await processAndEnhanceImage(originalBase64);
-                    if (enhancedResult.success) {
-                        finalImageBase64 = enhancedResult.base64;
-                        imgPreview.src = finalImageBase64;
-                        document.getElementById('cropStatusLabel').classList.remove('hidden');
-                    }
-                } catch (e) {
-                    console.warn("Enhancement gagal, menggunakan gambar asli.", e);
-                }
-            }
-            
-            currentImageBase64 = finalImageBase64;
-
-            statusText.innerHTML = "Memindai teks pada dokumen (OCR)...<br><span class='text-xs font-normal'>Mohon tunggu beberapa detik.</span>";
-            await performOCR(currentImageBase64);
+            await performCloudOCR(currentImageBase64);
             
             loadingStatus.classList.add('hidden');
         }
 
-        // --- Fungsi Auto Crop & Binarisasi (Adaptive Threshold) OpenCV ---
+        // --- Fungsi OCR Google Cloud Vision via Apps Script ---
 
-        function processAndEnhanceImage(imageSrc) {
-            return new Promise((resolve, reject) => {
-                let imgElement = new Image();
-                imgElement.onload = function() {
-                    let src = null, dst = null, contours = null, hierarchy = null, M_dilate = null, workingMat = null;
-                    try {
-                        src = cv.imread(imgElement);
-                        dst = new cv.Mat();
-                        
-                        // 1. Proses Mencari Batas Kertas
-                        cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
-                        let ksize = new cv.Size(5, 5);
-                        cv.GaussianBlur(dst, dst, ksize, 0, 0, cv.BORDER_DEFAULT);
-                        
-                        cv.Canny(dst, dst, 75, 200, 3, false);
-                        
-                        M_dilate = cv.Mat.ones(3, 3, cv.CV_8U);
-                        cv.dilate(dst, dst, M_dilate, new cv.Point(-1, -1), 1, cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
-                        
-                        contours = new cv.MatVector();
-                        hierarchy = new cv.Mat();
-                        cv.findContours(dst, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-                        
-                        let sortableContours = [];
-                        let minArea = (src.cols * src.rows) * 0.05; 
-                        
-                        for (let i = 0; i < contours.size(); ++i) {
-                            let cnt = contours.get(i);
-                            let area = cv.contourArea(cnt, false);
-                            if (area > minArea) {
-                                sortableContours.push({ cnt: cnt, area: area });
-                            }
-                        }
-                        
-                        sortableContours.sort((a, b) => b.area - a.area);
-                        
-                        let bestContour = null;
-                        
-                        for (let i = 0; i < Math.min(sortableContours.length, 5); ++i) {
-                            let cnt = sortableContours[i].cnt;
-                            let peri = cv.arcLength(cnt, true);
-                            let approx = new cv.Mat();
-                            cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-                            
-                            if (approx.rows === 4) {
-                                bestContour = approx.clone();
-                                approx.delete();
-                                break;
-                            }
-                            approx.delete();
-                        }
-                        
-                        workingMat = new cv.Mat();
-                        let cropSuccess = false;
-                        
-                        if (bestContour) {
-                            let points = [];
-                            for(let i=0; i<4; i++) {
-                                points.push({x: bestContour.data32S[i*2], y: bestContour.data32S[i*2+1]});
-                            }
-                            bestContour.delete();
-                            
-                            points.sort((a,b) => a.y - b.y);
-                            let top = points.slice(0,2).sort((a,b) => a.x - b.x);
-                            let bottom = points.slice(2,4).sort((a,b) => a.x - b.x);
-                            
-                            let tl = top[0], tr = top[1], bl = bottom[0], br = bottom[1];
-                            
-                            let widthA = Math.hypot(br.x - bl.x, br.y - bl.y);
-                            let widthB = Math.hypot(tr.x - tl.x, tr.y - tl.y);
-                            let maxWidth = Math.max(widthA, widthB);
-                            
-                            let heightA = Math.hypot(tr.x - br.x, tr.y - br.y);
-                            let heightB = Math.hypot(tl.x - bl.x, tl.y - bl.y);
-                            let maxHeight = Math.max(heightA, heightB);
-                            
-                            let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
-                            let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth-1, 0, maxWidth-1, maxHeight-1, 0, maxHeight-1]);
-                            
-                            let M = cv.getPerspectiveTransform(srcTri, dstTri);
-                            let dsize = new cv.Size(maxWidth, maxHeight);
-                            
-                            cv.warpPerspective(src, workingMat, M, dsize, cv.INTER_CUBIC, cv.BORDER_CONSTANT, new cv.Scalar());
-                            
-                            srcTri.delete(); dstTri.delete(); M.delete();
-                            cropSuccess = true;
-                        } else {
-                            src.copyTo(workingMat);
-                        }
-
-                        // =========================================================
-                        // 2. TAHAP BINARISASI ADAPTIF (Standar Scanner OCR)
-                        // =========================================================
-                        
-                        // Ubah ke Grayscale
-                        cv.cvtColor(workingMat, workingMat, cv.COLOR_RGBA2GRAY, 0);
-
-                        // Tambahkan sedikit blur untuk menghaluskan noise atau kotoran debu
-                        let ksizeBlur = new cv.Size(3, 3);
-                        cv.GaussianBlur(workingMat, workingMat, ksizeBlur, 0, 0, cv.BORDER_DEFAULT);
-
-                        // Adaptive Threshold: Sangat handal membaca area teks walau tertutup bayangan/cahaya
-                        // Parameter 21 (block size) dan 10 (konstanta C) sangat stabil untuk kertas putih tinta hitam
-                        cv.adaptiveThreshold(workingMat, workingMat, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 21, 10);
-
-                        // =========================================================
-
-                        let outCanvas = document.createElement('canvas');
-                        cv.imshow(outCanvas, workingMat);
-                        
-                        let enhancedBase64 = outCanvas.toDataURL('image/jpeg', 1.0);
-                        
-                        // Cleanup memori
-                        src.delete(); dst.delete(); contours.delete(); hierarchy.delete();
-                        if (M_dilate) M_dilate.delete();
-                        if (workingMat) workingMat.delete();
-                        
-                        resolve({ success: true, base64: enhancedBase64, isCropped: cropSuccess });
-                    } catch (e) {
-                        if(src) src.delete(); if(dst) dst.delete();
-                        if(contours) contours.delete(); if(hierarchy) hierarchy.delete();
-                        if(M_dilate) M_dilate.delete();
-                        if(workingMat) workingMat.delete();
-                        reject(e);
-                    }
-                };
-                imgElement.src = imageSrc;
-            });
-        }
-
-        // --- Fungsi OCR & Ekstraksi ---
-
-        async function performOCR(imageSrc) {
+        async function performCloudOCR(imageSrc) {
             try {
-                const result = await Tesseract.recognize(
-                    imageSrc,
-                    'eng',
-                    { logger: m => { /* console.log(m.progress); */ } }
-                );
+                // Kirim POST request ke Google Apps Script (Backend)
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ image: imageSrc }),
+                    // Penting: pastikan Content-Type diset agar backend bisa membaca JSON-nya
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8', 
+                    }
+                });
 
-                const text = result.data.text;
-                document.getElementById('rawText').innerText = text; 
-                extractData(text);
+                const data = await response.json();
+
+                if (data.success) {
+                    const text = data.text;
+                    if (!text) {
+                        alert("Tidak ada teks yang terdeteksi di gambar ini.");
+                        document.getElementById('rawText').innerText = "Tidak ada teks.";
+                        return;
+                    }
+
+                    document.getElementById('rawText').innerText = text; 
+                    extractData(text);
+                } else {
+                    console.error("Error dari Apps Script:", data.error);
+                    alert("Gagal membaca teks (Server Error): " + data.error);
+                }
 
             } catch (error) {
-                console.error("Error saat OCR:", error);
-                alert("Gagal membaca teks. Pastikan gambar tidak buram.");
+                console.error("Error fetch API:", error);
+                alert("Gagal terhubung ke server pindaian. Pastikan internet Anda lancar.");
             } finally {
                 document.getElementById('resultContainer').classList.remove('hidden');
                 document.getElementById('saveBtn').disabled = false;
             }
         }
 
+        // Fungsi Ekstraksi (Pencarian Pola Teks)
         function extractData(text) {
-            // Regex Diperbarui: Menoleransi kesalahan baca Tesseract yang sering terjadi
-            // Contoh toleransi: "Order" terbaca "0rder", atau "Shipment" terbaca "Shiprnent"
-            const orderRegex = /(?:Order|0rder)\s*#?\s*[:\-]?\s*([A-Za-z0-9\-]+)/i;
+            // Regex mencari Order #
+            const orderRegex = /Order\s*#?\s*[:\-]?\s*([A-Za-z0-9\-]+)/i;
             const orderMatch = text.match(orderRegex);
             
-            const dateRegex = /(?:Shipment|Shiprnent|Shtptnent)\s*(?:Date|Dato)\s*[:\-]?\s*([0-9A-Za-z\/]+)/i;
+            // Regex mencari Shipment Date
+            const dateRegex = /Shipment\s*Date\s*[:\-]?\s*([0-9A-Za-z\/]+)/i;
             const dateMatch = text.match(dateRegex);
 
             document.getElementById('orderNumberInput').value = (orderMatch && orderMatch[1]) ? orderMatch[1].trim() : "Tidak ditemukan";
