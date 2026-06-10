@@ -1,618 +1,2427 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SmartArchive - Pro Document Scanner</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Warehouse & Manifest - DLV WMS</title>
+  
+  <!-- Memanggil Tailwind CSS untuk Desain -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Memanggil Ikon Lucide -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- PENTING: Memanggil Library Scanner QR Code Kamera Asli -->
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+  <!-- PENTING: Library untuk cetak PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- PENTING: Library untuk Grafik Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Meta tag untuk PWA (Bisa di-Install ke HP) -->
+  <link id="pwa-manifest" rel="manifest" href="">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DLV WMS">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2933/2933886.png">
+
+  <!-- CSS Tambahan -->
+  <style>
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+    .hidden-el { display: none !important; }
     
-    <!-- Tailwind CSS untuk Styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- jsPDF untuk mengubah gambar menjadi file PDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <!-- Phosphor Icons untuk UI yang profesional -->
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <!-- OpenCV.js untuk Deteksi Tepi dan Auto Crop -->
-    <script async src="https://docs.opencv.org/4.8.0/opencv.js" type="text/javascript"></script>
-    <!-- Font Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    /* Scrollbar minimalis untuk tabel di HP */
+    .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.08);
+    /* Memperbaiki tampilan default kamera agar melengkung rapi */
+    #qr-reader { border: none !important; border-radius: 12px; overflow: hidden; background-color: #111827; }
+    #qr-reader video { object-fit: cover; border-radius: 12px; }
+
+    /* Animasi Laser Scanner */
+    @keyframes scanline {
+        0% { transform: translateY(-90px); }
+        100% { transform: translateY(90px); }
+    }
+    .animate-scanline { animation: scanline 2s ease-in-out infinite alternate; }
+
+    /* KHUSUS MODE CETAK (PRINT) MANIFEST */
+    @media print {
+        @page { margin: 1cm; size: auto; }
+        body { 
+            background-color: white !important; 
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
-        .loader {
-            border: 3px solid #e2e8f0;
-            border-top: 3px solid #2563eb;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
+        /* Sembunyikan elemen UI yang tidak perlu saat cetak */
+        #sidebar, header, #mobile-overlay, .no-print, #toast-container, #modal-container { 
+            display: none !important; 
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .fade-in { animation: fadeIn 0.3s ease-in-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        /* Reticle (Kotak target di kamera) */
-        .reticle-corner { position: absolute; width: 30px; height: 30px; border-color: rgba(255, 255, 255, 0.7); border-style: solid; }
-        .reticle-tl { top: 15%; left: 10%; border-width: 3px 0 0 3px; border-top-left-radius: 8px; }
-        .reticle-tr { top: 15%; right: 10%; border-width: 3px 3px 0 0; border-top-right-radius: 8px; }
-        .reticle-bl { bottom: 15%; left: 10%; border-width: 0 0 3px 3px; border-bottom-left-radius: 8px; }
-        .reticle-br { bottom: 15%; right: 10%; border-width: 0 3px 3px 0; border-bottom-right-radius: 8px; }
-        
-        /* Lightbox (Penampil Gambar Besar) */
-        #lightbox { transition: opacity 0.3s ease; }
-        #lightbox.show { opacity: 1; pointer-events: auto; }
-        #lightbox.hide { opacity: 0; pointer-events: none; }
-    </style>
+        /* Bebaskan pembatas ukuran */
+        #app-wrapper, #main-content { 
+            display: block !important; 
+            height: auto !important; 
+            overflow: visible !important; 
+            padding: 0 !important; 
+            margin: 0 !important;
+            background: white !important;
+        }
+        .main-card { 
+            box-shadow: none !important; 
+            border: none !important; 
+            border-radius: 0 !important;
+            max-width: 100% !important; 
+            width: 100% !important;
+        }
+        .signature-area { background-color: white !important; border-top: 1px solid #e5e7eb !important; color: black !important; }
+        input, select { color: black !important; border: none; background: transparent; padding: 0; }
+        input::placeholder { color: transparent !important; opacity: 0 !important; visibility: hidden !important; }
+    }
+  </style>
 </head>
-<body class="text-slate-800 flex flex-col items-center min-h-screen p-4 sm:p-8 relative">
+<body class="bg-gray-50 font-sans text-gray-800 h-screen w-full overflow-hidden flex">
 
-    <!-- Pesan Pemuatan OpenCV -->
-    <div id="opencvLoadingMsg" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center fade-in">
-        <div class="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center max-w-xs text-center">
-            <div class="loader mb-4 border-slate-200 border-top-blue-600 w-10 h-10 border-4"></div>
-            <h2 class="text-slate-800 font-bold text-lg mb-1">Memuat Modul AI</h2>
-            <p class="text-slate-500 text-sm">Menyiapkan sistem deteksi batas kertas otomatis...</p>
+  <!-- ================= LAYAR LOGIN ================= -->
+  <div id="login-view" class="fixed inset-0 z-[100] bg-gray-100 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden animate-fade-in border border-gray-200">
+      <div class="bg-gradient-to-br from-gray-900 to-blue-900 p-8 text-center text-white">
+        <div class="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <i data-lucide="shield-check" class="w-8 h-8 text-white"></i>
         </div>
-    </div>
-
-    <!-- Pesan Alert Kustom (Pengganti window.alert) -->
-    <div id="customAlert" class="fixed top-4 inset-x-4 sm:inset-x-auto sm:right-4 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl shadow-lg hidden fade-in flex items-center gap-3">
-        <i class="ph-fill ph-warning-circle text-2xl"></i>
-        <span id="alertMessage" class="text-sm font-medium">Pesan error di sini</span>
-        <button onclick="document.getElementById('customAlert').classList.add('hidden')" class="ml-auto p-1"><i class="ph ph-x"></i></button>
-    </div>
-
-    <header class="w-full max-w-lg mb-6 flex items-center justify-between">
+        <h1 class="font-black text-3xl tracking-wide">DLV<span class="text-blue-400">WMS</span></h1>
+        <p class="text-gray-300 text-sm mt-2">Masuk untuk mengelola gudang</p>
+      </div>
+      <div class="p-8 space-y-5">
+        <div id="login-error" class="hidden-el bg-red-50 text-red-600 p-3 rounded-xl text-sm font-medium border border-red-100 text-center">
+          Username atau Password salah!
+        </div>
         <div>
-            <h1 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                <i class="ph-fill ph-scan text-blue-600"></i> SmartArchive
-            </h1>
-            <p class="text-sm text-slate-500 font-medium mt-1">Auto-Crop & Cloud OCR</p>
+          <label class="block text-sm font-bold text-gray-700 mb-1">Username</label>
+          <input id="login-username" type="text" onkeydown="if(event.key === 'Enter') processLogin()" class="w-full border border-gray-300 rounded-xl p-3 bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition-colors" placeholder="Masukkan username..." autocomplete="off">
         </div>
-    </header>
-
-    <main class="w-full max-w-lg glass-panel rounded-2xl p-5 sm:p-7 relative fade-in">
-        
-        <!-- Pilihan Aksi Utama -->
-        <div class="grid grid-cols-2 gap-3 mb-2 opacity-50 pointer-events-none transition-opacity duration-300" id="actionButtons">
-            <button onclick="startCamera()" class="group flex flex-col items-center justify-center p-6 rounded-xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md hover:bg-blue-50 transition-all text-slate-700">
-                <div class="h-14 w-14 bg-blue-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <i class="ph ph-camera text-3xl text-blue-600"></i>
-                </div>
-                <span class="font-semibold text-sm sm:text-base">Kamera</span>
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-1">Password</label>
+          <div class="relative flex items-center">
+            <input id="login-password" type="password" onkeydown="if(event.key === 'Enter') processLogin()" class="w-full border border-gray-300 rounded-xl p-3 pr-10 bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition-colors" placeholder="••••••••">
+            <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 text-gray-400 hover:text-gray-600 focus:outline-none">
+              <i data-lucide="eye" id="eye-icon" class="w-5 h-5"></i>
             </button>
-            
-            <label for="imageUpload" class="group flex flex-col items-center justify-center p-6 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md hover:bg-slate-50 transition-all text-slate-700 cursor-pointer">
-                <div class="h-14 w-14 bg-slate-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <i class="ph ph-image text-3xl text-slate-600"></i>
-                </div>
-                <span class="font-semibold text-sm sm:text-base">Galeri</span>
-                <input id="imageUpload" type="file" accept="image/*" class="hidden" onchange="handleImageUpload(event)" />
-            </label>
+          </div>
         </div>
-
-        <!-- Area Kamera -->
-        <div id="cameraContainer" class="hidden flex-col gap-3 mb-4 fade-in">
-            <div class="relative w-full bg-black rounded-xl overflow-hidden aspect-[3/4] flex items-center justify-center shadow-inner">
-                <!-- Video stream -->
-                <video id="cameraStream" class="w-full h-full object-cover" autoplay playsinline muted></video>
-                
-                <!-- Kotak Bantuan Dokumen di Kamera -->
-                <div class="absolute inset-0 pointer-events-none">
-                    <div class="reticle-corner reticle-tl"></div>
-                    <div class="reticle-corner reticle-tr"></div>
-                    <div class="reticle-corner reticle-bl"></div>
-                    <div class="reticle-corner reticle-br"></div>
-                    <div class="absolute top-4 w-full text-center">
-                        <span class="bg-black/50 text-white/90 text-xs px-3 py-1 rounded-full backdrop-blur-sm shadow">Bidik dokumen dengan pencahayaan baik</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="flex gap-3">
-                <button onclick="stopCamera()" class="flex-1 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition">Batal</button>
-                <button onclick="capturePhoto()" class="flex-[2] py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition flex justify-center items-center gap-2">
-                    <i class="ph-fill ph-aperture text-xl"></i> Jepret
-                </button>
-            </div>
-        </div>
-
-        <!-- Status Loading Pemrosesan -->
-        <div id="loadingStatus" class="hidden flex-col items-center justify-center py-8 mb-2">
-            <div class="loader mb-4"></div>
-            <p id="statusText" class="text-sm font-semibold text-blue-700 text-center">Memproses Gambar...</p>
-        </div>
-
-        <!-- Hasil Ekstraksi -->
-        <div id="resultContainer" class="hidden fade-in flex-col gap-5 mt-4">
-            
-            <!-- Metadata Form -->
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <div class="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
-                    <i class="ph-fill ph-file-text text-blue-500 text-xl"></i>
-                    <h3 class="font-bold text-slate-800 text-sm">Informasi Dokumen (Halaman 1)</h3>
-                </div>
-                
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-500 mb-1 ml-1">Order Number</label>
-                        <div class="relative">
-                            <i class="ph ph-hash absolute left-3 top-3 text-slate-400"></i>
-                            <input type="text" id="orderNumberInput" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 font-medium" placeholder="Menunggu scan...">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-500 mb-1 ml-1">Shipment Date</label>
-                        <div class="relative">
-                            <i class="ph ph-calendar-blank absolute left-3 top-3 text-slate-400"></i>
-                            <input type="text" id="shipmentDateInput" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 font-medium" placeholder="Menunggu scan...">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Galeri Halaman Scan -->
-            <div>
-                <div class="flex justify-between items-end mb-2 px-1">
-                    <h3 class="text-sm font-bold text-slate-800">Halaman Discan (<span id="pageCount">0</span>)</h3>
-                    <p class="text-[10px] text-slate-500">Klik untuk memperbesar</p>
-                </div>
-                
-                <!-- Grid Galeri -->
-                <div id="pagesGallery" class="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    <!-- Thumbnail di-generate via JS -->
-                </div>
-            </div>
-
-            <!-- Tombol Aksi Bawah -->
-            <div class="flex gap-3 pt-2">
-                <button onclick="startCamera()" class="flex-1 py-3 px-2 bg-blue-50 text-blue-700 font-semibold rounded-xl border border-blue-200 hover:bg-blue-100 transition flex justify-center items-center gap-1.5 text-sm">
-                    <i class="ph-bold ph-plus"></i> Tambah Hal
-                </button>
-                <button id="saveBtn" onclick="saveAsPDF()" class="flex-[2] bg-slate-900 hover:bg-black text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-slate-300 transition flex justify-center items-center gap-2 text-sm">
-                    <i class="ph-bold ph-file-pdf text-lg text-red-400"></i> Simpan ke PDF
-                </button>
-            </div>
-        </div>
-    </main>
-
-    <!-- Lightbox (Penampil Gambar Besar) -->
-    <div id="lightbox" class="hide fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4">
-        <button onclick="closeLightbox()" class="absolute top-4 right-4 sm:top-8 sm:right-8 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full text-white flex items-center justify-center transition backdrop-blur z-50">
-            <i class="ph ph-x text-2xl"></i>
+        <button id="btn-login" onclick="processLogin()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors flex justify-center items-center gap-2 mt-2">
+          <i data-lucide="log-in" class="w-5 h-5"></i> Masuk Sistem
         </button>
-        <!-- Container Gambar dengan scroll jika panjang -->
-        <div class="w-full h-full overflow-y-auto flex items-center justify-center p-2 mt-12 sm:mt-0">
-            <img id="lightboxImage" src="" class="max-w-full h-auto object-contain rounded-lg shadow-2xl" alt="Preview Dokumen Detail">
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 1. HALAMAN UTAMA APLIKASI (ADMIN) ================= -->
+  <div id="app-wrapper" class="hidden-el flex w-full h-full relative">
+    
+    <!-- Overlay Mobile untuk Sidebar -->
+    <div id="mobile-overlay" onclick="toggleSidebar()" class="hidden-el fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-30 md:hidden"></div>
+
+    <!-- SIDEBAR -->
+    <div id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 bg-gray-900 text-white transition-all duration-300 flex flex-col shadow-2xl border-r border-gray-800 transform -translate-x-full md:relative md:translate-x-0">
+      <div class="h-16 flex items-center justify-center border-b border-gray-800 bg-gray-950 px-4">
+        <h1 id="sidebar-title" class="font-black text-xl tracking-wide truncate w-full text-center">
+          DLV<span class="text-blue-500">WMS</span>
+        </h1>
+        <i data-lucide="package" id="sidebar-icon" class="text-blue-500 hidden-el w-7 h-7 flex-shrink-0"></i>
+      </div>
+      
+      <!-- Info User Login -->
+      <div class="p-4 border-b border-gray-800 bg-gray-900/50 flex flex-col items-center">
+        <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center mb-2 font-bold text-white shadow-inner">
+          <span id="user-avatar">A</span>
         </div>
-        <p class="text-white/60 text-sm mt-4 pb-4">Ketuk di luar gambar untuk menutup</p>
+        <div id="sidebar-user-info" class="text-center w-full transition-opacity">
+          <p id="current-username" class="font-bold text-sm truncate">AJMA</p>
+          <p id="current-role" class="text-xs text-blue-400 font-medium">Super Admin</p>
+        </div>
+      </div>
+
+      <nav class="flex-1 mt-4 space-y-2 p-3 overflow-y-auto">
+        <button onclick="navigate('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 p-3.5 rounded-xl font-medium transition-all text-gray-400 hover:bg-gray-800 hover:text-white">
+          <i data-lucide="home" class="w-5 h-5 flex-shrink-0"></i> <span class="nav-text truncate">Dashboard</span>
+        </button>
+        <button onclick="navigate('warehouse')" id="nav-warehouse" class="w-full flex items-center gap-3 p-3.5 rounded-xl font-medium transition-all text-gray-400 hover:bg-gray-800 hover:text-white">
+          <i data-lucide="package" class="w-5 h-5 flex-shrink-0"></i> <span class="nav-text truncate">Manajemen Gudang</span>
+        </button>
+        <!-- MENU: MANIFEST / SERAH TERIMA -->
+        <button onclick="navigate('manifest')" id="nav-manifest" class="w-full flex items-center gap-3 p-3.5 rounded-xl font-medium transition-all text-gray-400 hover:bg-gray-800 hover:text-white">
+          <i data-lucide="clipboard-check" class="w-5 h-5 flex-shrink-0"></i> <span class="nav-text truncate">Serah Terima</span>
+        </button>
+        <button onclick="navigate('history')" id="nav-history" class="w-full flex items-center gap-3 p-3.5 rounded-xl font-medium transition-all text-gray-400 hover:bg-gray-800 hover:text-white">
+          <i data-lucide="history" class="w-5 h-5 flex-shrink-0"></i> <span class="nav-text truncate">Riwayat (Log)</span>
+        </button>
+        <!-- Menu Manajemen User (Hanya tampil jika Super Admin) -->
+        <button onclick="navigate('users')" id="nav-users" class="hidden-el w-full flex items-center gap-3 p-3.5 rounded-xl font-medium transition-all text-emerald-400 hover:bg-gray-800 hover:text-emerald-300">
+          <i data-lucide="users" class="w-5 h-5 flex-shrink-0"></i> <span class="nav-text truncate">Manajemen User</span>
+        </button>
+
+        <!-- Tombol Install PWA -->
+        <button onclick="installPWA()" id="install-app-btn" class="hidden-el w-full flex items-center gap-3 p-3.5 rounded-xl font-medium transition-all text-amber-400 hover:bg-gray-800 hover:text-amber-300 border border-gray-800 mt-2 bg-amber-500/10">
+          <i data-lucide="download" class="w-5 h-5 flex-shrink-0"></i> <span class="nav-text truncate">Install Aplikasi</span>
+        </button>
+      </nav>
+
+      <!-- Logout Sidebar -->
+      <div class="p-3 border-t border-gray-800">
+         <button onclick="processLogout()" class="w-full flex items-center justify-center gap-2 p-3 rounded-xl font-bold transition-all text-red-400 hover:bg-red-500/10">
+          <i data-lucide="log-out" class="w-5 h-5"></i> <span class="nav-text">Keluar</span>
+        </button>
+      </div>
     </div>
 
-    <!-- Canvas tersembunyi untuk perantara -->
-    <canvas id="hiddenCanvas" class="hidden"></canvas>
-
-    <script>
-        // --- KONFIGURASI URL APPS SCRIPT (GOOGLE VISION) ---
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwr6T6Q0dWXinD_hNYlUuORtnKrTCDBUkUwSfpkK70uKFIA2-Q9DzrLgprN45aRpkWB/exec";
+    <!-- AREA KONTEN UTAMA -->
+    <div class="flex-1 flex flex-col transition-all duration-300 min-w-0 h-full">
+      <!-- Header -->
+      <header class="h-16 bg-white/90 backdrop-blur-md shadow-sm border-b border-gray-100 flex items-center justify-between px-4 md:px-6 flex-shrink-0 z-10 print:hidden">
+        <div class="flex items-center gap-3">
+          <button onclick="toggleSidebar()" class="p-2 -ml-2 rounded-xl hover:bg-gray-100 text-gray-600 transition-colors">
+            <i data-lucide="menu" class="w-6 h-6"></i>
+          </button>
+          <span class="font-bold text-gray-800 md:hidden">DLV WMS</span>
+        </div>
         
-        // --- STATE APLIKASI ---
-        let scannedPages = []; // Menyimpan base64 hasil auto-crop
-        let videoStream = null;
-        let isCvReady = false;
+        <div class="flex items-center gap-2 text-xs md:text-sm font-semibold text-gray-600 bg-white shadow-sm px-3 md:px-4 py-1.5 rounded-full border border-gray-100">
+          <span id="sync-indicator" class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse flex-shrink-0"></span> 
+          <span id="sync-text" class="hidden sm:inline">Sistem Aktif</span>
+          <button onclick="refreshDatabase()" class="ml-1 md:ml-2 text-blue-500 hover:text-blue-700 p-1" title="Tarik Data Terbaru dari Server">
+            <i data-lucide="download-cloud" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </header>
 
-        // Fungsi menampilkan pesan error kustom (pengganti alert)
-        function showAlert(msg) {
-            document.getElementById('alertMessage').innerText = msg;
-            document.getElementById('customAlert').classList.remove('hidden');
-            setTimeout(() => { document.getElementById('customAlert').classList.add('hidden'); }, 5000);
+      <!-- Tempat Merender Konten Utama -->
+      <main id="main-content" class="p-4 md:p-8 flex-1 overflow-y-auto overflow-x-hidden bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] print:p-0 print:bg-white">
+        <!-- Konten diinjeksi via JS -->
+      </main>
+    </div>
+  </div>
+
+  <!-- ================= 2. HALAMAN PUBLIK (HASIL SCAN ANONIM) ================= -->
+  <div id="public-scan-view" class="hidden-el w-full h-full bg-gray-100 overflow-y-auto">
+    <div class="max-w-2xl mx-auto p-4 md:p-8 min-h-screen flex flex-col">
+      <!-- Header Publik -->
+      <div class="flex flex-col items-center justify-center mb-8 mt-4">
+        <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg mb-4 text-white">
+          <i data-lucide="box" class="w-8 h-8"></i>
+        </div>
+        <h1 class="font-black text-2xl tracking-wide text-gray-900">DLV<span class="text-blue-600">WMS</span></h1>
+        <p class="text-gray-500 text-sm mt-1">Informasi Pemindaian Barang</p>
+      </div>
+
+      <!-- Konten Scan Publik -->
+      <div id="public-scan-content" class="flex-1">
+        <div class="text-center p-10 bg-white rounded-3xl shadow-sm border border-gray-200">
+          <i data-lucide="loader-2" class="w-10 h-10 text-blue-500 animate-spin mx-auto mb-4"></i>
+          <p class="text-gray-500 font-medium">Memuat data dari server...</p>
+        </div>
+      </div>
+      
+      <!-- Footer Publik -->
+      <div class="mt-8 text-center text-xs text-gray-400 pb-8">
+        &copy; 2026 Sistem Manajemen Gudang DLV. Tidak ada otorisasi edit.
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL / POPUP ================= -->
+  <div id="modal-container" class="hidden-el fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in print:hidden">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border border-gray-100 flex flex-col max-h-[90vh]">
+      <div class="flex justify-between items-center p-4 md:p-5 border-b border-gray-100 bg-gray-50/50">
+        <h3 id="modal-title" class="font-bold text-base md:text-lg text-gray-800 flex items-center gap-2">Judul Modal</h3>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-red-500 transition-colors bg-white rounded-full p-1 shadow-sm">
+          <i data-lucide="x-circle" class="w-6 h-6"></i>
+        </button>
+      </div>
+      <div id="modal-body" class="overflow-y-auto flex-1 custom-scrollbar"></div>
+      <div id="modal-footer" class="p-4 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 hidden-el">
+        <button onclick="closeModal()" class="w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-300 rounded-xl hover:bg-gray-100 transition-colors">Batal</button>
+        <button id="modal-save-btn" onclick="saveModalData()" class="w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+          <i data-lucide="check-circle-2" class="w-4 h-4"></i> Simpan Data
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-container" class="fixed bottom-4 right-4 md:bottom-8 md:right-8 z-[60] flex flex-col gap-2 w-[calc(100%-2rem)] md:w-auto pointer-events-none print:hidden"></div>
+
+  <!-- ================= LOGIKA JAVASCRIPT UTAMA ================= -->
+  <script>
+    // URL GOOGLE APPS SCRIPT
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby6zqBOoOIrzDb6XmRfztEkqpT2okGyY0JCZv7PRjZf_NCqytKBkNRzu9RYBrQCIMqqFA/exec"; 
+
+    // --- VARIABEL GLOBAL ---
+    let currentDbVersion = 1;
+    let usersDataList = []; 
+
+    // --- FUNGSI SANITASI (MENCEGAH XSS HACKING) ---
+    function sanitizeHTML(str) {
+        if (!str) return '';
+        const temp = document.createElement('div');
+        temp.textContent = str;
+        return temp.innerHTML;
+    }
+
+    // --- FUNGSI PEMBERSIH URL GOOGLE DRIVE (AUTO-FIX) ---
+    function getSafeDriveUrl(rawUrl, isImageTag = false) {
+      if (!rawUrl) return '';
+      let fileId = '';
+      
+      if (rawUrl.includes('](')) fileId = rawUrl.split(')')[1]; 
+      else if (rawUrl.includes('id=')) fileId = rawUrl.split('id=')[1].split('&')[0];
+      else if (rawUrl.includes('/d/')) fileId = rawUrl.split('/d/')[1].split('/')[0];
+      else return rawUrl;
+      
+      if (isImageTag) return `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+      return `https://drive.google.com/file/d/${fileId}/view`;
+    }
+
+    // --- STATE UTAMA ---
+    let activeMenu = 'warehouse';
+    let isSidebarOpen = window.innerWidth >= 768; 
+    let expandedPallets = {};
+    let expandedBoxes = {};
+    let modalState = { type: '', parentId: null, parentBoxId: null, itemData: null, parentName: '' };
+    
+    // Objek Kamera & Session
+    let html5QrCode = null; 
+    let currentUser = null;
+
+    // Data Dasar Gudang
+    let warehouseData = [];
+    let historyLog = [];
+    
+    // State untuk Serah Terima (Manifest)
+    let manifestHistory = []; 
+    let currentManifestDraft = []; 
+    let isManifestSaved = false;
+    let currentManifestId = "DRAFT (BELUM DISIMPAN)";
+    let manifestFormState = { sender: '', receiver: '' }; 
+
+    // Variabel untuk PWA & Chart
+    let deferredPrompt;
+    let stockChartInstance = null;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const installBtn = document.getElementById('install-app-btn');
+      if(installBtn) installBtn.classList.remove('hidden-el');
+    });
+
+    window.installPWA = async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          document.getElementById('install-app-btn').classList.add('hidden-el');
         }
+        deferredPrompt = null;
+      }
+    };
 
-        // --- MANAJEMEN OPENCV LOAD ---
-        let cvCheckInterval = setInterval(() => {
-            if (typeof cv !== 'undefined' && cv.Mat) {
-                clearInterval(cvCheckInterval);
-                isCvReady = true;
-                // Hilangkan layar loading, aktifkan tombol
-                document.getElementById('opencvLoadingMsg').classList.add('hidden');
-                document.getElementById('actionButtons').classList.remove('opacity-50', 'pointer-events-none');
-            }
-        }, 500);
+    function saveDraftToLocal() {
+      localStorage.setItem('dlv_manifest_draft', JSON.stringify({
+        items: currentManifestDraft,
+        id: currentManifestId,
+        state: manifestFormState
+      }));
+    }
 
-        // --- MANAJEMEN LIGHTBOX ---
-        const lightbox = document.getElementById('lightbox');
-        const lightboxImg = document.getElementById('lightboxImage');
-
-        function openLightbox(base64Src) {
-            lightboxImg.src = base64Src;
-            lightbox.classList.remove('hide');
-            lightbox.classList.add('show');
+    function loadDraftFromLocal() {
+      try {
+        const saved = localStorage.getItem('dlv_manifest_draft');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.items && parsed.items.length > 0) {
+            currentManifestDraft = parsed.items;
+            currentManifestId = parsed.id || "DRAFT (BELUM DISIMPAN)";
+            manifestFormState = parsed.state || { sender: '', receiver: '' };
+          }
         }
+      } catch(e) {}
+    }
 
-        function closeLightbox() {
-            lightbox.classList.remove('show');
-            lightbox.classList.add('hide');
-            setTimeout(() => { lightboxImg.src = ''; }, 300);
+    window.onload = async () => {
+      lucide.createIcons();
+      loadDraftFromLocal(); 
+      
+      try {
+        const manifest = {
+          name: "DLV Warehouse System",
+          short_name: "DLV WMS",
+          start_url: window.location.href.split('?')[0],
+          display: "standalone",
+          background_color: "#f9fafb",
+          theme_color: "#2563eb",
+          icons: [{ src: "https://cdn-icons-png.flaticon.com/512/2933/2933886.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }]
+        };
+        const blobManifest = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+        document.getElementById('pwa-manifest').setAttribute('href', URL.createObjectURL(blobManifest));
+        
+        const swCode = `self.addEventListener('install', e => self.skipWaiting()); self.addEventListener('activate', e => e.waitUntil(clients.claim())); self.addEventListener('fetch', e => {});`;
+        const blobSW = new Blob([swCode], {type: 'application/javascript'});
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register(URL.createObjectURL(blobSW)).catch(e=>{});
+      } catch(e) {}
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const scanId = urlParams.get('scan');
+      
+      if (scanId) {
+        document.getElementById('login-view').classList.add('hidden-el');
+        document.getElementById('app-wrapper').classList.add('hidden-el');
+        document.getElementById('public-scan-view').classList.remove('hidden-el');
+        
+        if (SCRIPT_URL) await fetchDatabaseForPublic(scanId);
+        else renderPublicScanError("Database tidak terhubung.");
+      } else {
+        if (SCRIPT_URL) await fetchDatabase();
+        
+        const savedSession = sessionStorage.getItem('loggedInUser');
+        if (savedSession) {
+           try {
+             const validUser = JSON.parse(savedSession);
+             if (validUser && validUser.username) {
+                applyLogin(validUser);
+             } else {
+                sessionStorage.removeItem('loggedInUser');
+             }
+           } catch(e) {
+             sessionStorage.removeItem('loggedInUser');
+           }
         }
+        
+        if(window.innerWidth < 768) {
+           document.getElementById('sidebar').classList.add('-translate-x-full');
+        }
+      }
+    };
 
-        lightbox.addEventListener('click', function(e) {
-            if(e.target === lightbox || e.target.tagName !== 'IMG') closeLightbox();
+    function togglePasswordVisibility() {
+      const passInput = document.getElementById('login-password');
+      const eyeIcon = document.getElementById('eye-icon');
+      if (passInput.type === 'password') {
+        passInput.type = 'text';
+        eyeIcon.setAttribute('data-lucide', 'eye-off');
+      } else {
+        passInput.type = 'password';
+        eyeIcon.setAttribute('data-lucide', 'eye');
+      }
+      lucide.createIcons();
+    }
+
+    async function processLogin() {
+       const userInp = document.getElementById('login-username').value.trim().toUpperCase();
+       const passInp = document.getElementById('login-password').value.trim();
+       const errBox = document.getElementById('login-error');
+       const btn = document.getElementById('btn-login');
+       
+       if (!userInp || !passInp) {
+          errBox.innerText = "Username dan Password wajib diisi!";
+          errBox.classList.remove('hidden-el');
+          return;
+       }
+
+       errBox.classList.add('hidden-el');
+       const originalBtnText = btn.innerHTML;
+       btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Memeriksa...`;
+       btn.disabled = true;
+       lucide.createIcons();
+
+       try {
+           const payload = {
+               action: 'login',
+               username: userInp,
+               password: passInp
+           };
+           const response = await fetch(SCRIPT_URL, {
+               method: 'POST',
+               body: JSON.stringify(payload)
+           });
+           const result = await response.json();
+
+           if (result.status === 'success') {
+               result.user.password = passInp;
+               sessionStorage.setItem('loggedInUser', JSON.stringify(result.user));
+               applyLogin(result.user);
+           } else {
+               errBox.innerText = result.message || "Username atau Password salah!";
+               errBox.classList.remove('hidden-el');
+           }
+       } catch (e) {
+           errBox.innerText = "Terjadi kesalahan jaringan saat login.";
+           errBox.classList.remove('hidden-el');
+       } finally {
+           btn.innerHTML = originalBtnText;
+           btn.disabled = false;
+           lucide.createIcons();
+       }
+    }
+
+    function applyLogin(userObj) {
+       currentUser = userObj;
+       document.getElementById('current-username').innerText = sanitizeHTML(currentUser.username);
+       document.getElementById('user-avatar').innerText = sanitizeHTML(currentUser.username.charAt(0).toUpperCase());
+       document.getElementById('current-role').innerText = sanitizeHTML(currentUser.role);
+       
+       const navUsers = document.getElementById('nav-users');
+       if (currentUser.role === 'Super Admin') navUsers.classList.remove('hidden-el');
+       else {
+          navUsers.classList.add('hidden-el');
+          if (activeMenu === 'users') activeMenu = 'warehouse';
+       }
+
+       document.getElementById('login-view').classList.add('hidden-el');
+       document.getElementById('app-wrapper').classList.remove('hidden-el');
+       navigate(activeMenu);
+    }
+
+    function processLogout() {
+       sessionStorage.removeItem('loggedInUser');
+       currentUser = null;
+       document.getElementById('login-username').value = '';
+       document.getElementById('login-password').value = '';
+       document.getElementById('login-error').classList.add('hidden-el');
+
+       document.getElementById('app-wrapper').classList.add('hidden-el');
+       document.getElementById('login-view').classList.remove('hidden-el');
+    }
+
+    async function fetchDatabaseForPublic(boxId) {
+      try {
+        const response = await fetch(SCRIPT_URL);
+        const data = await response.json();
+        if(data && data.warehouseData) {
+          warehouseData = data.warehouseData;
+          let foundBox = null, foundPallet = null;
+          for (const p of warehouseData) {
+            const b = p.boxes.find(x => x.id === boxId);
+            if (b) { foundBox = b; foundPallet = p; break; }
+          }
+          if(foundBox) renderPublicScanSuccess(foundPallet, foundBox);
+          else renderPublicScanError("Box tidak ditemukan di dalam sistem.");
+        }
+      } catch (err) {
+        renderPublicScanError("Gagal terhubung ke database gudang.");
+      }
+    }
+
+    function renderPublicScanSuccess(pallet, box) {
+      const container = document.getElementById('public-scan-content');
+      let itemsHtml = '';
+      if (box.items.length === 0) {
+        itemsHtml = `<div class="text-center p-8 bg-gray-50 rounded-xl text-gray-500 italic border border-gray-100">Box ini dalam keadaan kosong.</div>`;
+      } else {
+        itemsHtml = `
+          <div class="overflow-x-auto custom-scrollbar bg-white rounded-xl border border-gray-200">
+            <table class="w-full text-sm text-left whitespace-nowrap">
+              <thead class="bg-gray-50 text-gray-600 border-b border-gray-200 text-xs uppercase">
+                <tr><th class="px-4 py-3">ID Barang</th><th class="px-4 py-3">Nama Artikel</th><th class="px-4 py-3 text-center">Foto</th><th class="px-4 py-3 text-right">Jumlah</th></tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                ${box.items.map(i => `
+                  <tr class="hover:bg-blue-50/50">
+                    <td class="px-4 py-3 font-mono text-xs font-bold text-gray-500">${sanitizeHTML(i.itemCode)}</td>
+                    <td class="px-4 py-3 font-medium text-gray-800">${sanitizeHTML(i.name)}</td>
+                    <td class="px-4 py-3 text-center">
+                       ${i.photoUrl ? `<a href="${getSafeDriveUrl(i.photoUrl)}" target="_blank" class="inline-flex p-1.5 bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100"><i data-lucide="image" class="w-4 h-4"></i></a>` : `<span class="text-gray-300">-</span>`}
+                    </td>
+                    <td class="px-4 py-3 text-right"><span class="inline-flex items-center px-2 py-1 rounded bg-indigo-50 text-indigo-700 font-bold text-xs">${i.qty} Pcs</span></td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      }
+      container.innerHTML = `
+        <div class="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in">
+          <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 md:p-8 text-white">
+            <div class="flex items-center gap-3 mb-2 opacity-80">
+              <i data-lucide="map-pin" class="w-5 h-5"></i> <span class="font-medium text-sm md:text-base">${sanitizeHTML(pallet.name)}</span>
+            </div>
+            <h2 class="text-3xl md:text-4xl font-extrabold flex items-center gap-3">
+              <i data-lucide="package-open" class="w-8 h-8 md:w-10 md:h-10"></i> ${sanitizeHTML(box.name)}
+            </h2>
+            <div class="mt-4 inline-block bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium">
+              Total ${box.items.length} jenis artikel
+            </div>
+          </div>
+          <div class="p-6 md:p-8">
+            <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2"><i data-lucide="list-checks" class="w-5 h-5 text-indigo-500"></i> Daftar Isi Box</h3>
+            ${itemsHtml}
+          </div>
+          <div class="p-4 bg-gray-50 border-t border-gray-100 text-center">
+             <button onclick="window.close(); alert('Silakan tutup tab browser Anda.');" class="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-xl transition-colors text-sm w-full sm:w-auto">
+               Tutup Halaman
+             </button>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+    }
+
+    function renderPublicScanError(msg) {
+      document.getElementById('public-scan-content').innerHTML = `
+        <div class="bg-white rounded-3xl shadow-sm border border-red-100 p-8 text-center animate-fade-in">
+          <div class="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4"><i data-lucide="alert-triangle" class="w-8 h-8"></i></div>
+          <h2 class="text-xl font-bold text-gray-800 mb-2">Pencarian Gagal</h2>
+          <p class="text-gray-600 mb-6">${msg}</p>
+          <button onclick="window.close();" class="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-xl">Tutup</button>
+        </div>
+      `;
+      lucide.createIcons();
+    }
+
+    async function fetchDatabase() {
+      setSyncStatus('Memuat...', 'bg-yellow-500');
+      try {
+        const response = await fetch(SCRIPT_URL);
+        const data = await response.json();
+        if(data) {
+          currentDbVersion = data.dbVersion || 1; 
+          
+          warehouseData = data.warehouseData || [];
+          historyLog = data.historyLog || [];
+          manifestHistory = data.manifestHistory || []; 
+          
+          setSyncStatus('Sistem Aktif', 'bg-emerald-500');
+          if(currentUser) navigate(activeMenu, true); 
+        }
+      } catch (err) {
+        setSyncStatus('Mode Offline', 'bg-red-500');
+      }
+    }
+
+    async function syncToDatabase() {
+      if (!SCRIPT_URL) return;
+      setSyncStatus('Menyimpan...', 'bg-yellow-500');
+      try {
+        const payload = {
+            dbVersion: currentDbVersion,
+            warehouseData: warehouseData,
+            historyLog: historyLog,
+            manifestHistory: manifestHistory
+        };
+
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+
+        if (result.status === 'conflict') {
+            alert("⚠️ " + result.message);
+            fetchDatabase(); 
+            setSyncStatus('Konflik Data', 'bg-red-500');
+        } else if (result.status === 'success') {
+            currentDbVersion = result.newDbVersion; 
+            setSyncStatus('Sistem Aktif', 'bg-emerald-500');
+        }
+      } catch (err) {
+        setSyncStatus('Gagal Simpan', 'bg-red-500');
+      }
+    }
+
+    function setSyncStatus(text, colorClass) {
+      document.getElementById('sync-text').innerText = text;
+      document.getElementById('sync-indicator').className = `w-2.5 h-2.5 rounded-full animate-pulse flex-shrink-0 ${colorClass}`;
+    }
+
+    function showToast(message, type = 'error') {
+      const toast = document.createElement('div');
+      const bgColor = type === 'error' ? 'bg-red-600' : 'bg-emerald-600';
+      toast.className = `${bgColor} text-white px-4 py-3 rounded-xl shadow-lg transform transition-all duration-300 translate-y-10 opacity-0 flex items-center gap-3 text-sm font-medium w-full pointer-events-auto z-[999]`;
+      toast.innerHTML = `<i data-lucide="${type === 'error' ? 'alert-circle' : 'check-circle'}" class="w-5 h-5 flex-shrink-0"></i> <span>${message}</span>`;
+      
+      document.getElementById('toast-container').appendChild(toast);
+      lucide.createIcons();
+      
+      requestAnimationFrame(() => toast.classList.remove('translate-y-10', 'opacity-0'));
+      setTimeout(() => {
+        toast.classList.add('translate-y-10', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    window.printQRLabel = (qrUrl, boxName) => {
+      const printWin = window.open('', '_blank');
+      printWin.document.write(`
+        <html>
+          <head>
+            <title>Cetak Label QR - ${sanitizeHTML(boxName)}</title>
+            <style>
+              body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: sans-serif; text-align: center; }
+              img { width: 250px; height: 250px; margin-bottom: 20px; border: 2px solid #000; padding: 10px; border-radius: 10px; }
+              h2 { font-size: 32px; margin: 0; font-weight: 900; }
+              p { font-size: 14px; color: #555; margin-top: 5px; }
+              @media print {
+                @page { margin: 0; }
+                body { margin: 1.6cm; }
+              }
+            </style>
+          </head>
+          <body>
+            <h2>${sanitizeHTML(boxName)}</h2>
+            <p>Scan Qr untuk cek isi box</p>
+            <img src="${qrUrl}" onload="setTimeout(() => { window.print(); window.close(); }, 500)" />
+          </body>
+        </html>
+      `);
+      printWin.document.close();
+    };
+
+    function startScanner() {
+      html5QrCode = new Html5Qrcode("qr-reader");
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+        (decodedText) => {
+          let scanId = null;
+          try {
+             const url = new URL(decodedText);
+             scanId = url.searchParams.get('scan');
+          } catch(e) { scanId = decodedText; }
+
+          if (scanId) {
+             let foundBox = null, foundPallet = null;
+             for (const p of warehouseData) {
+               const b = p.boxes.find(x => x.id === scanId);
+               if (b) { foundBox = b; foundPallet = p; break; }
+             }
+             if(foundBox) {
+                stopScanner();
+                openModal('ScanResult', foundPallet.id, foundBox.id);
+             } else {
+                showToast("Box tidak ditemukan di database gudang!", "error");
+             }
+          } else {
+             showToast("Format QR Code tidak dikenali.", "error");
+          }
+        },
+        (errorMessage) => {}
+      ).catch((err) => {
+        showToast("Kamera ditolak atau tidak ditemukan.", "error");
+      });
+    }
+
+    function startResiScanner() {
+      html5QrCode = new Html5Qrcode("qr-reader");
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 80 }, aspectRatio: 1.0 },
+        (decodedText) => {
+          stopScanner(); closeModal();
+          const resi = decodedText.trim().toUpperCase();
+          const service = document.getElementById('serviceInput') ? document.getElementById('serviceInput').value : 'REG';
+          
+          if(currentManifestDraft.some(i => i.resi === resi)) {
+              showToast("Resi duplikat diabaikan.", "error");
+          } else {
+              currentManifestDraft.push({ id: Date.now(), waktu: new Date().toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'}), resi: resi, service: service });
+              renderManifestTable();
+              showToast("Resi berhasil ditambahkan!", "success");
+          }
+        }, (errorMessage) => {}
+      ).catch((err) => showToast("Kamera error/tidak diizinkan.", "error"));
+    }
+
+    function stopScanner() {
+      if (html5QrCode) {
+        try {
+          html5QrCode.stop().then(() => {
+            html5QrCode.clear();
+            html5QrCode = null;
+          }).catch(err => { console.error(err); });
+        } catch(e) { console.error(e); }
+      }
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('mobile-overlay');
+      const texts = document.querySelectorAll('.nav-text');
+      const title = document.getElementById('sidebar-title');
+      const icon = document.getElementById('sidebar-icon');
+      const userInfo = document.getElementById('sidebar-user-info');
+      const isMobile = window.innerWidth < 768;
+
+      if (isMobile) {
+        if (sidebar.classList.contains('-translate-x-full')) {
+          sidebar.classList.remove('-translate-x-full');
+          overlay.classList.remove('hidden-el');
+        } else {
+          sidebar.classList.add('-translate-x-full');
+          overlay.classList.add('hidden-el');
+        }
+      } else {
+        isSidebarOpen = !isSidebarOpen;
+        if (isSidebarOpen) {
+          sidebar.classList.remove('w-20'); sidebar.classList.add('w-64');
+          texts.forEach(t => t.classList.remove('hidden-el'));
+          title.classList.remove('hidden-el');
+          icon.classList.add('hidden-el');
+          userInfo.classList.remove('hidden-el');
+        } else {
+          sidebar.classList.remove('w-64'); sidebar.classList.add('w-20');
+          texts.forEach(t => t.classList.add('hidden-el'));
+          title.classList.add('hidden-el');
+          icon.classList.remove('hidden-el');
+          userInfo.classList.add('hidden-el');
+        }
+      }
+    }
+
+    function navigate(menu, noAnimation = false) {
+      activeMenu = menu;
+      ['dashboard', 'warehouse', 'manifest', 'history', 'users'].forEach(m => {
+        const btn = document.getElementById(`nav-${m}`);
+        if(!btn) return;
+        if(m === menu) {
+          const colorClass = m === 'users' ? 'emerald' : m === 'manifest' ? 'indigo' : 'blue';
+          btn.className = `w-full flex items-center gap-3 p-3.5 rounded-xl font-medium transition-all bg-${colorClass}-600 text-white shadow-lg shadow-${colorClass}-900/50`;
+        } else {
+          btn.className = m === 'users'
+             ? "w-full flex items-center gap-3 p-3.5 rounded-xl font-medium transition-all text-emerald-400 hover:bg-gray-800 hover:text-emerald-300"
+             : "w-full flex items-center gap-3 p-3.5 rounded-xl font-medium transition-all text-gray-400 hover:bg-gray-800 hover:text-white";
+        }
+      });
+
+      const main = document.getElementById('main-content');
+      if (menu === 'dashboard') {
+         main.innerHTML = renderDashboard(noAnimation);
+         setTimeout(initChart, 100);
+      }
+      else if (menu === 'warehouse') {
+         const searchInp = document.getElementById('warehouse-search');
+         const currentSearch = searchInp ? searchInp.value : '';
+         main.innerHTML = renderWarehouse(noAnimation);
+         if(currentSearch) {
+             const newSearchInp = document.getElementById('warehouse-search');
+             if(newSearchInp) { newSearchInp.value = currentSearch; filterWarehouse(); }
+         }
+      }
+      else if (menu === 'manifest') {
+         main.innerHTML = renderManifest(noAnimation);
+      }
+      else if (menu === 'history') main.innerHTML = renderHistory(noAnimation);
+      else if (menu === 'users') {
+         main.innerHTML = renderUsersMenu(noAnimation);
+         fetchUsersList(); 
+      }
+      
+      lucide.createIcons();
+      if(window.innerWidth < 768 && !document.getElementById('sidebar').classList.contains('-translate-x-full')) {
+         toggleSidebar();
+      }
+    }
+
+    function initChart() {
+        const ctx = document.getElementById('stockChart');
+        if(!ctx) return;
+        
+        if(stockChartInstance) stockChartInstance.destroy();
+
+        const labels = warehouseData.map(p => p.name);
+        const dataPcs = warehouseData.map(p => {
+            let total = 0;
+            p.boxes.forEach(b => b.items.forEach(i => total += (parseInt(i.qty) || 0)));
+            return total;
         });
 
-        // --- MANAJEMEN KAMERA ---
-        async function startCamera() {
-            const cameraContainer = document.getElementById('cameraContainer');
-            const video = document.getElementById('cameraStream');
-            const actionButtons = document.getElementById('actionButtons');
-            const resultContainer = document.getElementById('resultContainer');
-            
-            try {
-                // Minta resolusi sangat tinggi, browser akan menyesuaikan ke batas max kamera HP otomatis
-                videoStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment', width: { ideal: 4096 }, height: { ideal: 2160 } } 
-                });
-                video.srcObject = videoStream;
-                
-                cameraContainer.classList.remove('hidden');
-                cameraContainer.classList.add('flex');
-                actionButtons.classList.add('hidden');
-                resultContainer.classList.add('hidden');
-            } catch (err) {
-                console.error("Gagal akses kamera:", err);
-                showAlert("Kamera tidak dapat diakses. Pastikan izin kamera diaktifkan di browser Anda.");
-            }
-        }
-
-        function stopCamera() {
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-                videoStream = null;
-            }
-            document.getElementById('cameraContainer').classList.remove('flex');
-            document.getElementById('cameraContainer').classList.add('hidden');
-            
-            // Tampilkan kembali hasil jika ada, jika kosong ke menu awal
-            if(scannedPages.length > 0) {
-                document.getElementById('resultContainer').classList.remove('hidden');
-            } else {
-                document.getElementById('actionButtons').classList.remove('hidden');
-            }
-        }
-
-        function capturePhoto() {
-            const video = document.getElementById('cameraStream');
-            if(!video.videoWidth) return; 
-            
-            const canvas = document.getElementById('hiddenCanvas');
-            let vw = video.videoWidth;
-            let vh = video.videoHeight;
-            
-            // Batasi ukuran gambar aman (Max Quad HD) untuk mencegah memori HP penuh saat OpenCV bekerja
-            const MAX_RES = 2560; 
-            if (vw > MAX_RES || vh > MAX_RES) {
-                const ratio = Math.min(MAX_RES / vw, MAX_RES / vh);
-                vw = Math.round(vw * ratio);
-                vh = Math.round(vh * ratio);
-            }
-            
-            canvas.width = vw;
-            canvas.height = vh;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            const base64Img = canvas.toDataURL('image/jpeg', 1.0);
-            stopCamera();
-            
-            processPageFlow(base64Img);
-        }
-
-        function handleImageUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            document.getElementById('actionButtons').classList.add('hidden');
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                processPageFlow(e.target.result);
-            }
-            reader.readAsDataURL(file);
-        }
-
-        // --- ALGORITMA OPENCV (AUTO CROP / PERATAAN KERTAS) ---
-        function autoCropDocument(imageSrc) {
-            return new Promise((resolve) => {
-                if (!isCvReady) {
-                    resolve({ success: false, base64: imageSrc }); // Fallback aman
-                    return;
+        stockChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Total Stok (Pcs)',
+                    data: dataPcs,
+                    backgroundColor: 'rgba(37, 99, 235, 0.8)',
+                    borderColor: 'rgba(37, 99, 235, 1)',
+                    borderWidth: 1,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { borderDash: [2, 4], color: '#f1f5f9' } },
+                    x: { grid: { display: false } }
                 }
-
-                let imgElement = new Image();
-                imgElement.onload = function() {
-                    let src = null, gray = null, blurred = null, edges = null, contours = null, hierarchy = null, M_dilate = null, warped = null;
-                    try {
-                        src = cv.imread(imgElement);
-                        gray = new cv.Mat();
-                        blurred = new cv.Mat();
-                        edges = new cv.Mat();
-                        
-                        // 1. Pre-processing: Grayscale & Blur
-                        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-                        let ksize = new cv.Size(5, 5);
-                        cv.GaussianBlur(gray, blurred, ksize, 0, 0, cv.BORDER_DEFAULT);
-                        
-                        // 2. Edge Detection (Canny)
-                        cv.Canny(blurred, edges, 75, 200, 3, false);
-                        
-                        // 3. Dilation (Menebalkan garis tepi agar sudut kertas tidak terputus)
-                        M_dilate = cv.Mat.ones(3, 3, cv.CV_8U);
-                        cv.dilate(edges, edges, M_dilate, new cv.Point(-1, -1), 1, cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
-                        
-                        // 4. Cari Bentuk (Contours)
-                        contours = new cv.MatVector();
-                        hierarchy = new cv.Mat();
-                        cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-                        
-                        // Filter kontur yang luasnya cukup besar (mengabaikan teks kecil/noise)
-                        let sortableContours = [];
-                        let minArea = (src.cols * src.rows) * 0.1; // Minimal 10% layar
-                        
-                        for (let i = 0; i < contours.size(); ++i) {
-                            let cnt = contours.get(i);
-                            let area = cv.contourArea(cnt, false);
-                            if (area > minArea) {
-                                sortableContours.push({ cnt: cnt, area: area });
-                            }
-                        }
-                        
-                        // Urutkan dari yang terbesar
-                        sortableContours.sort((a, b) => b.area - a.area);
-                        
-                        let bestContour = null;
-                        
-                        // Cari yang poligonnya bersudut 4 (Segi empat)
-                        for (let i = 0; i < Math.min(sortableContours.length, 5); ++i) {
-                            let cnt = sortableContours[i].cnt;
-                            let peri = cv.arcLength(cnt, true);
-                            let approx = new cv.Mat();
-                            cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-                            
-                            if (approx.rows === 4) {
-                                bestContour = approx.clone();
-                                approx.delete();
-                                break;
-                            }
-                            approx.delete();
-                        }
-                        
-                        if (bestContour) {
-                            // Ekstrak koordinat 4 sudut
-                            let points = [];
-                            for(let i=0; i<4; i++) {
-                                points.push({x: bestContour.data32S[i*2], y: bestContour.data32S[i*2+1]});
-                            }
-                            bestContour.delete();
-                            
-                            // Urutkan koordinat menjadi TL, TR, BL, BR
-                            points.sort((a,b) => a.y - b.y);
-                            let top = points.slice(0,2).sort((a,b) => a.x - b.x);
-                            let bottom = points.slice(2,4).sort((a,b) => a.x - b.x);
-                            
-                            let tl = top[0], tr = top[1], bl = bottom[0], br = bottom[1];
-                            
-                            // Kalkulasi Lebar & Tinggi perspektif baru
-                            let widthA = Math.hypot(br.x - bl.x, br.y - bl.y);
-                            let widthB = Math.hypot(tr.x - tl.x, tr.y - tl.y);
-                            let maxWidth = Math.max(widthA, widthB);
-                            
-                            let heightA = Math.hypot(tr.x - br.x, tr.y - br.y);
-                            let heightB = Math.hypot(tl.x - bl.x, tl.y - bl.y);
-                            let maxHeight = Math.max(heightA, heightB);
-                            
-                            // Transformasi Perspektif (Warping)
-                            let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
-                            let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth-1, 0, maxWidth-1, maxHeight-1, 0, maxHeight-1]);
-                            
-                            let M = cv.getPerspectiveTransform(srcTri, dstTri);
-                            warped = new cv.Mat();
-                            let dsize = new cv.Size(maxWidth, maxHeight);
-                            
-                            // Menarik dan meluruskan gambar warna asli
-                            cv.warpPerspective(src, warped, M, dsize, cv.INTER_CUBIC, cv.BORDER_CONSTANT, new cv.Scalar());
-                            
-                            let outCanvas = document.createElement('canvas');
-                            cv.imshow(outCanvas, warped);
-                            let croppedBase64 = outCanvas.toDataURL('image/jpeg', 0.95);
-                            
-                            // Cleanup Memori
-                            srcTri.delete(); dstTri.delete(); M.delete(); warped.delete();
-                            src.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
-                            if (M_dilate) M_dilate.delete();
-                            
-                            resolve({ success: true, base64: croppedBase64 });
-                        } else {
-                            // Gagal nemu segi empat, kembalikan gambar asli
-                            src.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
-                            if (M_dilate) M_dilate.delete();
-                            resolve({ success: false, base64: imageSrc });
-                        }
-                    } catch (e) {
-                        console.error("OpenCV Error:", e);
-                        // Cleanup jika error
-                        if(src) src.delete(); if(gray) gray.delete(); if(blurred) blurred.delete(); 
-                        if(edges) edges.delete(); if(contours) contours.delete(); if(hierarchy) hierarchy.delete();
-                        if(M_dilate) M_dilate.delete(); if(warped) warped.delete();
-                        resolve({ success: false, base64: imageSrc });
-                    }
-                };
-                imgElement.src = imageSrc;
-            });
-        }
-
-        // --- ALUR PEMROSESAN UTAMA ---
-        async function processPageFlow(rawBase64) {
-            const loadingStatus = document.getElementById('loadingStatus');
-            const statusText = document.getElementById('statusText');
-            
-            loadingStatus.classList.remove('hidden');
-            loadingStatus.classList.add('flex');
-            
-            const isFirstPage = scannedPages.length === 0;
-
-            // Tahap 1: Smart Auto Crop (OpenCV)
-            statusText.innerText = "Menganalisa dan meratakan dokumen...";
-            await new Promise(r => setTimeout(r, 50)); // Render delay
-            
-            const cropResult = await autoCropDocument(rawBase64);
-            const finalImageBase64 = cropResult.base64;
-            
-            scannedPages.push(finalImageBase64); // Simpan ke array multi-page
-            
-            // Tahap 2: Google Vision OCR (Hanya untuk Halaman Pertama)
-            if (isFirstPage) {
-                statusText.innerText = "Cloud AI sedang mengekstrak teks...";
-                await performCloudOCR(finalImageBase64);
             }
+        });
+    }
 
-            // Update Galeri & Selesai
-            updateGalleryUI();
-            
-            loadingStatus.classList.remove('flex');
-            loadingStatus.classList.add('hidden');
-            document.getElementById('resultContainer').classList.remove('hidden');
-            document.getElementById('resultContainer').classList.add('flex');
-        }
+    function renderDashboard(noAnimation = false) {
+      let totalP = warehouseData.length, totalB = 0, totalI = 0;
+      warehouseData.forEach(p => {
+        totalB += p.boxes.length;
+        p.boxes.forEach(b => b.items.forEach(i => { totalI += (parseInt(i.qty) || 0); }));
+      });
+      let totalManifests = manifestHistory.length;
 
-        function updateGalleryUI() {
-            document.getElementById('pageCount').innerText = scannedPages.length;
-            const gallery = document.getElementById('pagesGallery');
-            gallery.innerHTML = '';
+      return `
+        <div class="space-y-6 md:space-y-8 ${noAnimation ? '' : 'animate-fade-in'} max-w-6xl mx-auto">
+          <div><h2 class="text-2xl md:text-3xl font-extrabold text-gray-800">Ringkasan Gudang</h2><p class="text-sm text-gray-500">Selamat bekerja, ${currentUser ? sanitizeHTML(currentUser.username) : 'Admin'}!</p></div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            <div class="bg-gradient-to-br from-blue-500 to-blue-700 text-white p-5 md:p-6 rounded-2xl shadow-lg relative overflow-hidden">
+              <h3 class="text-xs md:text-lg font-medium opacity-90 mb-1">Total Palet</h3><p class="text-3xl md:text-5xl font-extrabold">${totalP}</p>
+              <i data-lucide="package" class="absolute -bottom-4 -right-4 w-24 h-24 text-white opacity-20 hidden md:block"></i>
+            </div>
+            <div class="bg-gradient-to-br from-emerald-400 to-emerald-600 text-white p-5 md:p-6 rounded-2xl shadow-lg relative overflow-hidden">
+              <h3 class="text-xs md:text-lg font-medium opacity-90 mb-1">Total Box</h3><p class="text-3xl md:text-5xl font-extrabold">${totalB}</p>
+              <i data-lucide="package" class="absolute -bottom-4 -right-4 w-24 h-24 text-white opacity-20 hidden md:block"></i>
+            </div>
+            <div class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-5 md:p-6 rounded-2xl shadow-lg relative overflow-hidden">
+              <h3 class="text-xs md:text-lg font-medium opacity-90 mb-1">Total Stok (Pcs)</h3><p class="text-3xl md:text-5xl font-extrabold">${totalI.toLocaleString('id-ID')}</p>
+              <i data-lucide="package" class="absolute -bottom-4 -right-4 w-24 h-24 text-white opacity-20 hidden md:block"></i>
+            </div>
+            <div class="bg-gradient-to-br from-gray-700 to-gray-900 text-white p-5 md:p-6 rounded-2xl shadow-lg relative overflow-hidden">
+              <h3 class="text-xs md:text-lg font-medium opacity-90 mb-1">Log Manifest</h3><p class="text-3xl md:text-5xl font-extrabold">${totalManifests}</p>
+              <i data-lucide="clipboard-check" class="absolute -bottom-4 -right-4 w-24 h-24 text-white opacity-20 hidden md:block"></i>
+            </div>
+          </div>
+          <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h3 class="text-lg md:text-xl font-bold text-gray-800 mb-6 flex items-center gap-2"><i data-lucide="bar-chart-2" class="text-blue-500 w-5 h-5"></i> Distribusi per Palet</h3>
+            <div class="relative w-full h-64 md:h-80">
+              <canvas id="stockChart"></canvas>
+            </div>
+          </div>
+        </div>
+      `;
+    }
 
-            scannedPages.forEach((base64Src, index) => {
-                const thumbDiv = document.createElement('div');
-                thumbDiv.className = "relative aspect-[3/4] bg-slate-200 rounded-lg overflow-hidden border border-slate-300 shadow-sm cursor-pointer hover:border-blue-500 hover:ring-2 hover:ring-blue-200 transition group";
-                thumbDiv.onclick = () => openLightbox(base64Src);
+    function renderManifest(noAnimation = false) {
+      setTimeout(() => {
+          const form = document.getElementById('inputFormManifest');
+          if (form) {
+              form.addEventListener('submit', function(e) {
+                  e.preventDefault();
+                  if (isManifestSaved) {
+                      if (!confirm("Data sudah disimpan. Menambah data baru akan mereset form. Lanjutkan?")) return;
+                      resetManifestData();
+                  }
+                  const resiInp = document.getElementById('resiInput');
+                  const resi = resiInp.value.trim().toUpperCase();
+                  const service = document.getElementById('serviceInput').value;
+                  if (!resi) return;
+                  if (currentManifestDraft.some(item => item.resi === resi)) return showToast("Nomor Resi Duplikat!", "error");
+                  
+                  currentManifestDraft.push({
+                      id: Date.now(), waktu: new Date().toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'}),
+                      resi: resi, service: service
+                  });
+                  renderManifestTable();
+                  resiInp.value = '';
+                  resiInp.focus();
+              });
+          }
+          renderManifestTable();
+          if(manifestFormState.sender) updateSignatureImg();
+      }, 50);
 
-                thumbDiv.innerHTML = `
-                    <img src="${base64Src}" class="w-full h-full object-cover" />
-                    <div class="absolute bottom-0 inset-x-0 bg-black/60 backdrop-blur-sm text-white text-[10px] text-center py-1 font-medium">Hal. ${index + 1}</div>
-                    <div class="absolute inset-0 bg-blue-500/0 group-hover:bg-blue-500/10 transition flex items-center justify-center">
-                        <i class="ph-fill ph-magnifying-glass-plus text-white opacity-0 group-hover:opacity-100 text-xl drop-shadow-md transition"></i>
+      const todayOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+      const dateString = new Date().toLocaleDateString('id-ID', todayOptions);
+
+      return `
+        <div class="main-card max-w-4xl mx-auto bg-white shadow-sm md:shadow-lg rounded-none md:rounded-xl overflow-hidden border-0 md:border border-gray-200 ${noAnimation ? '' : 'animate-fade-in'} min-h-full md:min-h-0 md:my-6">
+            <div class="bg-blue-900 p-5 md:p-6 text-white flex justify-between items-start print:p-0 print:bg-white print:text-black print:border-b print:border-gray-300 print:mb-4">
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold tracking-tight uppercase">Serah Terima Dokumen</h1>
+                    <p class="text-blue-200 text-xs md:text-sm mt-1 print:text-gray-600">JNE Express Logistics / DLV Warehouse</p>
+                    <div class="mt-4 bg-blue-800 bg-opacity-50 px-3 py-1.5 rounded inline-block print:bg-white print:p-0">
+                        <span class="text-[10px] md:text-xs text-blue-300 uppercase tracking-wider block print:text-gray-500">Nomor Serah Terima (ID)</span>
+                        <span id="manifestIdDisplay" class="font-mono text-base md:text-xl font-bold ${isManifestSaved ? 'text-yellow-300' : 'text-white'} tracking-widest print:text-black">${sanitizeHTML(currentManifestId)}</span>
                     </div>
+                </div>
+                <div class="text-right flex flex-col items-end">
+                    <div class="bg-white p-2 rounded-lg shadow-sm inline-block mb-2 print:shadow-none print:p-0">
+                        <img src="https://ajmaerlangga.github.io/image/epac.png" alt="Logo" class="h-10 md:h-12 w-auto object-contain">
+                    </div>
+                    <div class="text-[10px] md:text-xs font-mono text-blue-200 print:text-gray-600">${dateString}</div>
+                </div>
+            </div>
+
+            <div class="p-4 md:p-6 bg-gray-50 border-b border-gray-200 no-print">
+                <h2 class="text-xs md:text-sm font-semibold text-gray-700 uppercase mb-3 flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i> Input Data Resi Baru
+                </h2>
+                <form id="inputFormManifest" class="flex flex-col md:flex-row gap-3 md:gap-4 items-end">
+                    <div class="flex-1 w-full">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Nomor Resi / AWB</label>
+                        <input type="text" id="resiInput" placeholder="Ketik resi atau Scan..." class="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition uppercase font-mono text-sm" autocomplete="off">
+                    </div>
+                    <div class="w-full md:w-1/3">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Layanan (Service)</label>
+                        <select id="serviceInput" class="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white text-sm">
+                            <option value="REG">REG - Reguler</option>
+                            <option value="YES">YES - Yakin Esok Sampai</option>
+                            <option value="OKE">OKE - Ekonomis</option>
+                            <option value="JTR">JTR - Trucking</option>
+                            <option value="SPS">SPS - Super Speed</option>
+                        </select>
+                    </div>
+                    <div class="flex w-full md:w-auto gap-2">
+                        <button type="submit" class="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium transition flex items-center justify-center gap-2 shadow-sm text-sm">
+                            <i data-lucide="corner-down-left" class="w-4 h-4"></i> Input
+                        </button>
+                        <button type="button" onclick="openModal('ScanResi')" class="flex-1 md:flex-none bg-gray-800 hover:bg-gray-900 text-white px-4 py-2.5 rounded-lg font-medium transition flex items-center justify-center shadow-sm">
+                            <i data-lucide="camera" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="p-4 md:p-6 min-h-[300px]">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-gray-800 flex items-center gap-2 text-sm md:text-base">
+                        <i data-lucide="package" class="w-4 h-4 text-indigo-600"></i> Daftar Paket
+                    </h3>
+                    <span class="text-xs md:text-sm text-gray-500">Total Item: <span id="totalItemsDisplay" class="font-bold text-indigo-900">0</span></span>
+                </div>
+
+                <div class="overflow-x-auto print:overflow-visible">
+                    <table class="w-full text-xs md:text-sm text-left border-collapse">
+                        <thead class="text-[10px] md:text-xs text-gray-500 uppercase bg-gray-50 border-b-2 border-gray-200 print:bg-white print:border-black">
+                            <tr>
+                                <th class="px-3 py-2 md:px-4 md:py-3 w-12 text-center">No</th>
+                                <th class="px-3 py-2 md:px-4 md:py-3 w-32">Waktu</th>
+                                <th class="px-3 py-2 md:px-4 md:py-3">Nomor Resi (AWB)</th>
+                                <th class="px-3 py-2 md:px-4 md:py-3 w-24 md:w-32 text-center">Service</th>
+                                <th class="px-3 py-2 md:px-4 md:py-3 w-16 text-center no-print">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="manifestTableBody" class="divide-y divide-gray-100 print:divide-gray-300">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="signature-area bg-gray-50 p-4 md:p-6 border-t border-gray-200 grid grid-cols-2 gap-6 md:gap-12 mt-auto break-inside-avoid print:bg-white print:border-t-2 print:border-black">
+                <div class="text-center relative">
+                    <p class="text-[10px] md:text-xs text-gray-500 mb-2 uppercase tracking-wide font-bold print:text-black">Diserahkan Oleh</p>
+                    <div class="h-20 md:h-28 w-full border-b border-gray-400 print:border-black mb-2 flex items-end justify-center relative">
+                        <img id="senderSignatureImg" src="" alt="TTD" class="hidden h-28 md:h-40 object-contain absolute bottom-[-10px] mix-blend-multiply pointer-events-none">
+                    </div>
+                    <div class="h-8 flex justify-center items-start">
+                        <select id="manifestSender" onchange="manifestFormState.sender = this.value; updateSignatureImg(); saveDraftToLocal();" class="no-print w-full max-w-[150px] text-center border border-gray-300 rounded shadow-sm bg-white text-xs font-semibold focus:outline-none cursor-pointer py-1">
+                            <option value="" ${manifestFormState.sender === '' ? 'selected' : ''}>- Petugas -</option>
+                            <option value="GERRY" ${manifestFormState.sender === 'GERRY' ? 'selected' : ''}>GERRY</option>
+                            <option value="AJMA" ${manifestFormState.sender === 'AJMA' ? 'selected' : ''}>AJMA</option>
+                        </select>
+                        <span class="print-only hidden font-bold text-sm" id="printSenderName"></span>
+                    </div>
+                </div>
+
+                <div class="text-center relative">
+                    <p class="text-[10px] md:text-xs text-gray-500 mb-2 uppercase tracking-wide font-bold print:text-black">Diterima Oleh</p>
+                    <div class="h-20 md:h-28 w-full border-b border-gray-400 print:border-black mb-2 flex items-end justify-center"></div>
+                    <div class="h-8 flex justify-center items-start">
+                        <input type="text" id="manifestReceiver" value="${sanitizeHTML(manifestFormState.receiver)}" onkeyup="manifestFormState.receiver = this.value; document.getElementById('printReceiverName').innerText = this.value; saveDraftToLocal();" placeholder="Nama Kurir Pick-up" class="no-print w-full text-center bg-transparent font-semibold text-xs md:text-sm placeholder-gray-400 focus:outline-none py-1 border-b border-transparent focus:border-gray-300">
+                        <span class="print-only hidden font-bold text-sm border-b border-black w-full" id="printReceiverName">${sanitizeHTML(manifestFormState.receiver)}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 md:p-6 bg-gray-100 flex flex-col md:flex-row justify-between gap-3 no-print rounded-b-xl border-t border-gray-200">
+                 <button onclick="resetManifestData()" class="px-4 py-2 text-red-600 bg-white hover:bg-red-50 rounded-lg border border-red-200 transition text-sm font-medium w-full md:w-auto shadow-sm">
+                    Kosongkan Form
+                </button>
+                <div class="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                    <button onclick="saveManifestProcess()" id="btnSaveManifest" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-md transition text-sm font-medium flex items-center justify-center gap-2 w-full sm:w-auto ${isManifestSaved ? 'hidden-el' : ''}">
+                        <i data-lucide="cloud-upload" class="w-4 h-4"></i> Simpan Data Server
+                    </button>
+                    <button onclick="window.print()" id="btnPrintManifest" class="px-5 py-2.5 bg-gray-800 hover:bg-gray-900 text-white rounded-lg shadow-md transition text-sm font-medium flex items-center justify-center gap-2 w-full sm:w-auto ${!isManifestSaved ? 'opacity-50 cursor-not-allowed' : ''}" ${!isManifestSaved ? 'disabled' : ''}">
+                        <i data-lucide="printer" class="w-4 h-4"></i> Cetak Dokumen
+                    </button>
+                </div>
+            </div>
+        </div>
+      `;
+    }
+
+    window.renderManifestTable = () => {
+        const tbody = document.getElementById('manifestTableBody');
+        const count = document.getElementById('totalItemsDisplay');
+        if (!tbody || !count) return;
+        
+        count.innerText = currentManifestDraft.length;
+        if(currentManifestDraft.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-10 text-center text-gray-400 italic bg-gray-50/50 rounded border-dashed border border-gray-200 m-4">Belum ada resi yang di-scan.</td></tr>`;
+        } else {
+            tbody.innerHTML = currentManifestDraft.map((item, index) => {
+                const badgeColor = (item.service === 'YES' || item.service === 'SPS') ? "bg-red-100 text-red-800 border-red-200" : "bg-indigo-100 text-indigo-800 border-indigo-200";
+                return `
+                    <tr class="hover:bg-indigo-50/50 transition border-b border-gray-100 print:border-gray-300">
+                        <td class="px-3 py-2 md:px-4 md:py-3 text-center font-medium text-gray-500">${index + 1}</td>
+                        <td class="px-3 py-2 md:px-4 md:py-3 text-gray-600 font-mono text-[10px] md:text-xs">${item.waktu}</td>
+                        <td class="px-3 py-2 md:px-4 md:py-3 font-bold text-gray-800 tracking-wide">${sanitizeHTML(item.resi)}</td>
+                        <td class="px-3 py-2 md:px-4 md:py-3 text-center"><span class="${badgeColor} text-[10px] md:text-xs px-2 py-0.5 rounded border font-semibold">${sanitizeHTML(item.service)}</span></td>
+                        <td class="px-3 py-2 md:px-4 md:py-3 text-center no-print">
+                            <button onclick="openModal('HapusResi', null, null, null, ${item.id})" class="text-red-500 hover:text-red-700 p-1.5 hover:bg-red-50 rounded transition" title="Hapus resi ini"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </td>
+                    </tr>
                 `;
-                gallery.appendChild(thumbDiv);
-            });
+            }).join('');
         }
+        lucide.createIcons();
+        saveDraftToLocal(); 
+    };
 
-        // --- GOOGLE VISION API (VIA APPS SCRIPT) ---
-        async function performCloudOCR(base64Src) {
-            try {
-                const response = await fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({ image: base64Src }),
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-                });
+    window.resetManifestData = () => {
+        currentManifestDraft = [];
+        isManifestSaved = false;
+        currentManifestId = "DRAFT (BELUM DISIMPAN)";
+        manifestFormState = { sender: '', receiver: '' };
+        localStorage.removeItem('dlv_manifest_draft'); 
+        navigate('manifest', true); 
+    };
 
-                const data = await response.json();
-                if (data.success) {
-                    extractSmartData(data.text);
-                } else {
-                    console.error("OCR Error:", data.error);
-                    showAlert("Gagal memproses teks. Silakan isi manual.");
-                }
-            } catch (error) {
-                console.error("Network Error:", error);
-                showAlert("Gagal terhubung ke Cloud. Pastikan internet Anda aktif.");
-            }
-        }
+    window.updateSignatureImg = () => {
+        const select = document.getElementById('manifestSender');
+        const img = document.getElementById('senderSignatureImg');
+        const printText = document.getElementById('printSenderName');
+        if (!select || !img || !printText) return;
+        
+        printText.innerText = select.value;
+        if (select.value === 'GERRY') { img.src = 'https://ajmaerlangga.github.io/image/Gerry_warehouse.png'; img.classList.remove('hidden'); } 
+        else if (select.value === 'AJMA') { img.src = 'https://ajmaerlangga.github.io/image/Ajma_warehouse.png'; img.classList.remove('hidden'); } 
+        else { img.src = ''; img.classList.add('hidden'); }
+    };
 
-        function extractSmartData(text) {
-            // Regex Pintar Baru: Langsung mencari pola unik 181- dan mengabaikan teks sekitarnya
-            let orderNo = "";
-            const strictOrderRegex = /(?:181\-)[0-9]{8,15}/g;
-            const orderMatches = text.match(strictOrderRegex);
+    window.saveManifestProcess = () => {
+        if(currentManifestDraft.length === 0) return showToast("Daftar resi masih kosong!", "error");
+        const sender = document.getElementById('manifestSender').value;
+        const receiver = document.getElementById('manifestReceiver').value || "-";
+        if(!sender) return showToast("Mohon pilih nama Petugas Pengirim!", "error");
+
+        const btnSave = document.getElementById('btnSaveManifest');
+        btnSave.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Menyimpan...`;
+        btnSave.disabled = true;
+
+        const dateObj = new Date();
+        const dateStr = dateObj.toISOString().slice(0,10).replace(/-/g,"");
+        const timeStr = dateObj.toTimeString().slice(0,8).replace(/:/g,"");
+        currentManifestId = "M" + dateStr + timeStr;
+
+        const newManifest = {
+            id: currentManifestId,
+            date: dateObj.toLocaleString('id-ID'),
+            sender: sender, receiver: receiver, items: currentManifestDraft
+        };
+
+        manifestHistory.push(newManifest);
+        isManifestSaved = true;
+
+        addLogRecord("BUAT MANIFEST", `Menyimpan ${currentManifestDraft.length} Paket. ID: ${currentManifestId}`, "Serah Terima");
+        
+        syncToDatabase();
+        localStorage.removeItem('dlv_manifest_draft'); 
+        showToast("Manifest Berhasil Disimpan!", "success");
+        navigate('manifest', true); 
+    };
+
+    window.moveBoxOrder = (pId, bId, dir) => {
+        const pIdx = warehouseData.findIndex(p => p.id === pId);
+        if (pIdx < 0) return;
+        const bIdx = warehouseData[pIdx].boxes.findIndex(b => b.id === bId);
+        if (bIdx < 0) return;
+        
+        const newIdx = bIdx + dir;
+        if (newIdx < 0 || newIdx >= warehouseData[pIdx].boxes.length) return; 
+        
+        const temp = warehouseData[pIdx].boxes[bIdx];
+        warehouseData[pIdx].boxes[bIdx] = warehouseData[pIdx].boxes[newIdx];
+        warehouseData[pIdx].boxes[newIdx] = temp;
+        
+        navigate('warehouse', true); 
+        syncToDatabase();
+    };
+
+    window.togglePalletData = (id) => { 
+      expandedPallets[id] = !expandedPallets[id]; 
+      const content = document.getElementById('pallet-content-' + id);
+      const chevron = document.getElementById('pallet-chevron-' + id);
+      if (expandedPallets[id]) {
+        content.classList.remove('hidden-el');
+        chevron.classList.add('rotate-90', 'text-blue-500');
+      } else {
+        content.classList.add('hidden-el');
+        chevron.classList.remove('rotate-90', 'text-blue-500');
+      }
+    };
+    
+    window.toggleBoxData = (id) => { 
+      expandedBoxes[id] = !expandedBoxes[id]; 
+      const content = document.getElementById('box-content-' + id);
+      const chevron = document.getElementById('box-chevron-' + id);
+      if (expandedBoxes[id]) {
+        content.classList.remove('hidden-el');
+        chevron.classList.add('rotate-90', 'text-emerald-500');
+      } else {
+        content.classList.add('hidden-el');
+        chevron.classList.remove('rotate-90', 'text-emerald-500');
+      }
+    };
+
+    function renderWarehouse(noAnimation = false) {
+      let html = `
+        <div class="space-y-4 md:space-y-6 ${noAnimation ? '' : 'animate-fade-in'} max-w-5xl mx-auto">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 gap-4">
+            <div><h2 class="text-xl md:text-2xl font-bold text-gray-800">Hierarki Gudang</h2></div>
+            <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <button onclick="exportWarehouseToPDF()" class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 md:px-4 py-2.5 rounded-xl text-xs md:text-sm font-medium shadow-md whitespace-nowrap">
+                <i data-lucide="file-text" class="w-4 h-4 text-white"></i> PDF Stok
+              </button>
+              <button onclick="openModal('Scan')" class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white px-3 md:px-4 py-2.5 rounded-xl text-xs md:text-sm font-medium shadow-md">
+                <i data-lucide="scan" class="w-4 h-4 text-blue-400"></i> Scan Internal
+              </button>
+              <button onclick="openModal('Palet')" class="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 md:px-4 py-2.5 rounded-xl text-xs md:text-sm font-medium shadow-md whitespace-nowrap">
+                <i data-lucide="plus" class="w-4 h-4"></i> Buat Palet
+              </button>
+            </div>
+          </div>
+
+          <div class="relative bg-white rounded-2xl shadow-sm border border-gray-100 p-1 mb-2 flex items-center transition-all focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
+             <div class="absolute left-4 text-gray-400"><i data-lucide="search" class="w-5 h-5"></i></div>
+             <input type="text" id="warehouse-search" onkeyup="filterWarehouse()" placeholder="Cari palet, box, kode barang, atau artikel..." class="w-full pl-12 pr-4 py-3 bg-transparent outline-none text-sm md:text-base text-gray-700 font-medium">
+          </div>
+
+          <div class="space-y-4 pb-10" id="warehouse-list">
+      `;
+
+      if (warehouseData.length === 0) {
+         html += `<div class="text-center p-8 text-sm text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200">Gudang masih kosong.</div>`;
+      }
+
+      warehouseData.forEach(p => {
+        if (expandedPallets[p.id] === undefined) expandedPallets[p.id] = false;
+
+        html += `
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden pallet-container" data-id="${p.id}" data-name="${sanitizeHTML(p.name)}">
+            <div class="flex items-center justify-between p-3 md:p-4 cursor-pointer hover:bg-slate-50 transition-colors" onclick="togglePalletData('${p.id}')">
+              <div class="flex items-center gap-2 md:gap-3">
+                <div id="pallet-chevron-${p.id}" class="text-slate-400 transition-transform duration-300 ${expandedPallets[p.id] ? 'rotate-90 text-blue-500' : ''}"><i data-lucide="chevron-right" class="w-5 h-5"></i></div>
+                <div class="flex items-center gap-1.5 md:gap-2">
+                  <i data-lucide="package" class="w-5 h-5 text-blue-600"></i>
+                  <h3 class="font-bold text-base md:text-lg text-slate-800">${sanitizeHTML(p.name)}</h3>
+                  <span class="hidden sm:inline ml-2 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] md:text-xs font-semibold">${p.boxes.length} Box</span>
+                </div>
+              </div>
+              <button onclick="event.stopPropagation(); openModal('Box', '${p.id}')" class="flex items-center gap-1 text-xs md:text-sm font-medium text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-lg">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> <span class="hidden sm:inline">Tambah Box</span><span class="sm:hidden">Box</span>
+              </button>
+            </div>
             
-            if(orderMatches && orderMatches.length > 0) {
-                orderNo = orderMatches[0];
+            <div id="pallet-content-${p.id}" class="p-3 md:p-4 pt-0 transition-opacity duration-300 ${expandedPallets[p.id] ? '' : 'hidden-el'}">
+        `;
+
+        if (p.boxes.length === 0) {
+          html += `<div class="ml-8 text-xs md:text-sm text-slate-400 italic">Palet kosong.</div>`;
+        } else {
+          html += `<div class="ml-2 sm:ml-5 pl-2 sm:pl-4 border-l-2 border-slate-100 space-y-3 mt-2">`;
+          p.boxes.forEach(b => {
+            if (expandedBoxes[b.id] === undefined) expandedBoxes[b.id] = false;
+
+            html += `
+              <div class="bg-white border border-slate-200 rounded-lg shadow-sm box-container" data-id="${b.id}" data-name="${sanitizeHTML(b.name)}">
+                <div class="flex items-center justify-between p-2 md:p-3 cursor-pointer hover:bg-slate-50 bg-slate-50/50 rounded-t-lg" onclick="toggleBoxData('${b.id}')">
+                  <div class="flex items-center gap-1.5 md:gap-2 overflow-hidden">
+                    <div id="box-chevron-${b.id}" class="text-slate-400 transition-transform duration-300 ${expandedBoxes[b.id] ? 'rotate-90 text-emerald-500' : ''}"><i data-lucide="chevron-right" class="w-4 h-4"></i></div>
+                    <span class="font-semibold text-sm md:text-base text-slate-700 truncate max-w-[100px] sm:max-w-xs">📦 ${sanitizeHTML(b.name)}</span>
+                    <span class="text-[10px] md:text-xs bg-white border border-slate-200 text-slate-500 px-1.5 py-0.5 rounded ml-1 md:ml-2 flex-shrink-0">${b.items.length} Item</span>
+                  </div>
+                  
+                  <!-- ALAT AKSI BOX -->
+                  <div class="flex items-center gap-2 flex-shrink-0">
+                    <button onclick="event.stopPropagation(); openModal('BoxSettings', '${p.id}', '${b.id}')" class="p-1.5 text-slate-500 hover:text-blue-600 bg-white rounded-lg border border-slate-200 shadow-sm transition-colors" title="Pengaturan Box">
+                      <i data-lucide="settings" class="w-4 h-4"></i>
+                    </button>
+                    
+                    <button onclick="event.stopPropagation(); openModal('Barang', '${p.id}', '${b.id}')" class="flex items-center gap-1 text-[10px] md:text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1.5 rounded-lg shadow-sm transition-colors">
+                      <i data-lucide="plus" class="w-3.5 h-3.5"></i> <span class="hidden sm:inline">Isi Barang</span><span class="sm:hidden">Isi</span>
+                    </button>
+                  </div>
+                </div>
+                
+                <div id="box-content-${b.id}" class="p-0 border-t border-slate-100 overflow-x-auto custom-scrollbar transition-opacity duration-300 ${expandedBoxes[b.id] ? '' : 'hidden-el'}">
+            `;
+            
+            if (b.items.length === 0) {
+              html += `<p class="text-xs text-slate-400 italic text-center py-3">Box kosong.</p>`;
             } else {
-                // Cadangan
-                const fallbackRegex = /(?:Order|0rder)\s*#?\s*[:\-]?\s*([A-Za-z0-9\-]+)/i;
-                const fbMatch = text.match(fallbackRegex);
-                if(fbMatch && fbMatch[1]) orderNo = fbMatch[1].trim();
+              html += `
+                <table class="w-full text-xs md:text-sm text-left whitespace-nowrap min-w-[500px]">
+                  <thead class="text-slate-500 bg-white border-b border-slate-100">
+                    <tr><th class="px-3 md:px-4 py-2 md:py-3 w-1/4">ID Barang</th><th class="px-3 md:px-4 py-2 md:py-3 w-1/3">Nama Artikel</th><th class="px-3 md:px-4 py-2 md:py-3 w-1/5">Jumlah</th><th class="px-3 md:px-4 py-2 md:py-3 text-right">Opsi</th></tr>
+                  </thead><tbody class="divide-y divide-slate-50">
+              `;
+              b.items.forEach(i => {
+                html += `
+                  <tr class="hover:bg-slate-50/80 item-row" data-search="${sanitizeHTML(i.itemCode)} ${sanitizeHTML(i.name)}">
+                    <td class="px-3 md:px-4 py-2 md:py-3 font-mono text-[10px] md:text-xs font-bold text-slate-500">${sanitizeHTML(i.itemCode)}</td>
+                    <td class="px-3 md:px-4 py-2 md:py-3 font-medium text-slate-800 truncate max-w-[120px] sm:max-w-none">${sanitizeHTML(i.name)}</td>
+                    <td class="px-3 md:px-4 py-2 md:py-3"><span class="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold">${i.qty} Pcs</span></td>
+                    <td class="px-3 md:px-4 py-2 md:py-3 text-right space-x-0.5 md:space-x-1">
+                      <button onclick="openModal('Foto', '${p.id}', '${b.id}', null, '${i.id}')" class="p-1.5 ${i.photoUrl ? 'text-indigo-600 bg-indigo-100' : 'text-gray-400 bg-gray-100'} hover:bg-indigo-200 rounded" title="Foto Barang"><i data-lucide="camera" class="w-3.5 h-3.5 md:w-4 md:h-4"></i></button>
+                      <button onclick="openModal('Edit', '${p.id}', '${b.id}', null, '${i.id}')" class="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded bg-emerald-50" title="Edit Data"><i data-lucide="edit" class="w-3.5 h-3.5 md:w-4 md:h-4"></i></button>
+                      <button onclick="openModal('Pindah', '${p.id}', '${b.id}', null, '${i.id}')" class="p-1.5 text-blue-600 hover:bg-blue-100 rounded bg-blue-50" title="Pindah Box"><i data-lucide="arrow-right-left" class="w-3.5 h-3.5 md:w-4 md:h-4"></i></button>
+                      <button onclick="openModal('Hapus', '${p.id}', '${b.id}', null, '${i.id}')" class="p-1.5 text-red-600 hover:bg-red-100 rounded bg-red-50" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5 md:w-4 md:h-4"></i></button>
+                    </td>
+                  </tr>
+                `;
+              });
+              html += `</tbody></table>`;
             }
+            html += `</div></div>`;
+          });
+          html += `</div>`;
+        }
+        html += `</div></div>`;
+      });
+      html += `</div></div>`;
+      return html;
+    }
 
-            // Regex Tanggal
-            let shipDate = "";
-            const dateRegex = /(?:Shipment|Shiprnent|Shtptnent)\s*(?:Date|Dato)\s*[:\-]?\s*([0-9A-Za-z\/\-\.]+)/i;
-            const dateMatch = text.match(dateRegex);
+    window.filterWarehouse = () => {
+       const query = document.getElementById('warehouse-search').value.toLowerCase();
+       const pallets = document.querySelectorAll('.pallet-container');
+       
+       pallets.forEach(palEl => {
+           let palMatch = palEl.dataset.name.toLowerCase().includes(query);
+           let anyBoxMatch = false;
+           const boxes = palEl.querySelectorAll('.box-container');
+           
+           boxes.forEach(boxEl => {
+               let boxMatch = boxEl.dataset.name.toLowerCase().includes(query);
+               let anyItemMatch = false;
+               const items = boxEl.querySelectorAll('.item-row');
+               
+               items.forEach(itemEl => {
+                   let itemMatch = itemEl.dataset.search.toLowerCase().includes(query);
+                   if(itemMatch) anyItemMatch = true;
+                   itemEl.style.display = itemMatch || boxMatch || palMatch ? '' : 'none';
+               });
+               
+               if (boxMatch || anyItemMatch) anyBoxMatch = true;
+               boxEl.style.display = boxMatch || anyItemMatch || palMatch ? '' : 'none';
+               
+               const content = document.getElementById('box-content-' + boxEl.dataset.id);
+               const chevron = document.getElementById('box-chevron-' + boxEl.dataset.id);
+               if (content && chevron) {
+                  if (query && (boxMatch || anyItemMatch)) {
+                     content.classList.remove('hidden-el');
+                     chevron.classList.add('rotate-90', 'text-emerald-500');
+                  } else if (!query && !expandedBoxes[boxEl.dataset.id]) {
+                     content.classList.add('hidden-el');
+                     chevron.classList.remove('rotate-90', 'text-emerald-500');
+                  }
+               }
+           });
+           
+           palEl.style.display = palMatch || anyBoxMatch ? '' : 'none';
+           
+           const palContent = document.getElementById('pallet-content-' + palEl.dataset.id);
+           const palChevron = document.getElementById('pallet-chevron-' + palEl.dataset.id);
+           if (palContent && palChevron) {
+              if (query && (palMatch || anyBoxMatch)) {
+                 palContent.classList.remove('hidden-el');
+                 palChevron.classList.add('rotate-90', 'text-blue-500');
+              } else if (!query && !expandedPallets[palEl.dataset.id]) {
+                 palContent.classList.add('hidden-el');
+                 palChevron.classList.remove('rotate-90', 'text-blue-500');
+              }
+           }
+       });
+    };
+
+    window.exportWarehouseToPDF = () => {
+       if (warehouseData.length === 0) return showToast("Gudang masih kosong, tidak ada data untuk dicetak!", "error");
+       
+       showToast("Mempersiapkan PDF Data Gudang...", "success");
+       const { jsPDF } = window.jspdf;
+       const doc = new jsPDF('landscape');
+       
+       doc.setFontSize(16);
+       doc.text("Laporan Stok Barang Gudang - DLV WMS", 14, 20);
+       doc.setFontSize(10);
+       doc.setTextColor(100);
+       doc.text("Dicetak oleh: " + (currentUser ? currentUser.username : "Admin") + " | Waktu: " + new Date().toLocaleString('id-ID'), 14, 28);
+
+       const tableData = [];
+       let totalPcs = 0;
+
+       warehouseData.forEach(palet => {
+           if (palet.boxes.length === 0) {
+               tableData.push([palet.name, "-", "-", "Palet Kosong", "-"]);
+           } else {
+               palet.boxes.forEach(box => {
+                   if (box.items.length === 0) {
+                       tableData.push([palet.name, box.name, "-", "Box Kosong", "-"]);
+                   } else {
+                       box.items.forEach(item => {
+                           tableData.push([palet.name, box.name, item.itemCode, item.name, item.qty + " Pcs"]);
+                           totalPcs += parseInt(item.qty) || 0;
+                       });
+                   }
+               });
+           }
+       });
+
+       doc.autoTable({
+           startY: 35,
+           head: [['Nama Palet', 'Nama Box', 'Kode Barang', 'Nama Artikel', 'Jumlah']],
+           body: tableData,
+           styles: { fontSize: 9, cellPadding: 3 },
+           headStyles: { fillColor: [37, 99, 235] }, 
+           alternateRowStyles: { fillColor: [249, 250, 251] },
+           foot: [['', '', '', 'TOTAL SELURUH STOK:', totalPcs + ' Pcs']],
+           footStyles: { fillColor: [229, 231, 235], textColor: [17, 24, 39], fontStyle: 'bold' }
+       });
+
+       doc.save(`DLV_Stok_Barang_${Date.now()}.pdf`);
+    };
+
+    function renderHistory(noAnimation = false) {
+      if (historyLog.length === 0) return `<div class="p-8 text-center text-gray-500 bg-white rounded-2xl shadow-sm border border-gray-100 max-w-4xl mx-auto">Belum ada riwayat.</div>`;
+      
+      let rows = historyLog.slice(0, 50).map(l => `
+        <div class="bg-white p-3 md:p-4 rounded-xl border border-gray-100 flex flex-col sm:flex-row gap-2 sm:gap-4 shadow-sm text-sm hover:bg-gray-50 transition-colors">
+          <div class="flex-1">
+            <div class="flex justify-between items-center mb-1">
+              <span class="font-bold text-gray-800 bg-gray-100 px-2 py-0.5 rounded text-xs">${sanitizeHTML(l.action)}</span>
+              <span class="text-xs text-gray-500 font-medium">${sanitizeHTML(l.timestamp)}</span>
+            </div>
+            <p class="text-gray-700 mb-2 mt-1">${sanitizeHTML(l.details)}</p>
+            <div class="text-[10px] md:text-xs text-gray-400 font-medium flex gap-3">
+              <span><i data-lucide="user" class="w-3 h-3 inline mr-1"></i>${sanitizeHTML(l.user)}</span>
+              <span><i data-lucide="map-pin" class="w-3 h-3 inline mr-1"></i>${sanitizeHTML(l.location)}</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+      
+      return `
+        <div class="space-y-3 md:space-y-4 ${noAnimation ? '' : 'animate-fade-in'} max-w-4xl mx-auto pb-10">
+          <div class="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 mb-4">
+             <h2 class="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2"><i data-lucide="history" class="text-blue-500"></i> Riwayat Terakhir (50 Log)</h2>
+             <p class="text-xs text-gray-500 mt-1">Daftar ini telah disederhanakan tanpa nomor halaman untuk menghemat performa.</p>
+          </div>
+          ${rows}
+        </div>
+      `;
+    }
+
+    function renderUsersMenu(noAnimation = false) {
+      if (!currentUser || currentUser.role !== 'Super Admin') return `<div class="p-8 text-center text-red-500">Akses Ditolak</div>`;
+
+      return `
+        <div class="space-y-4 md:space-y-6 ${noAnimation ? '' : 'animate-fade-in'} max-w-4xl mx-auto pb-10">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100 gap-4">
+            <div>
+              <h2 class="text-xl md:text-2xl font-bold text-gray-800">Manajemen User</h2>
+              <p class="text-xs text-gray-500 mt-1">Kelola data petugas gudang secara aman dengan Enkripsi SHA-256 Sisi Server.</p>
+            </div>
+            <button onclick="openModal('TambahUser')" class="w-full sm:w-auto flex justify-center items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs md:text-sm font-semibold shadow-md whitespace-nowrap">
+              <i data-lucide="user-plus" class="w-4 h-4"></i> Tambah User Baru
+            </button>
+          </div>
+          
+          <div id="users-list-container" class="space-y-4">
+             <div class="text-center p-12 bg-white rounded-2xl shadow-sm border border-gray-100">
+                <i data-lucide="loader-2" class="w-8 h-8 text-emerald-500 animate-spin mx-auto mb-2"></i>
+                <p class="text-gray-500 text-sm font-medium">Memverifikasi Otorisasi Super Admin...</p>
+             </div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function fetchUsersList() {
+      const container = document.getElementById('users-list-container');
+      if (!container) return;
+
+      try {
+        const payload = {
+          action: 'getUsers',
+          adminUsername: currentUser.username,
+          adminPassword: currentUser.password
+        };
+        const response = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+          usersDataList = result.users || [];
+          renderUsersTable();
+        } else {
+          container.innerHTML = `
+            <div class="text-center p-8 bg-red-50 text-red-600 rounded-2xl border border-red-200 shadow-sm">
+              <i data-lucide="alert-triangle" class="w-8 h-8 mx-auto mb-2"></i>
+              Gagal mengambil data user: ${sanitizeHTML(result.message)}
+            </div>`;
+          lucide.createIcons();
+        }
+      } catch(e) {
+        container.innerHTML = `
+          <div class="text-center p-8 bg-red-50 text-red-600 rounded-2xl border border-red-200">
+            Terjadi kesalahan koneksi internet atau server backend.
+          </div>`;
+      }
+    }
+
+    function renderUsersTable() {
+      const container = document.getElementById('users-list-container');
+      if (!container) return;
+
+      if (usersDataList.length === 0) {
+        container.innerHTML = `<p class="text-center p-8 text-gray-500 bg-white rounded-2xl border italic">Belum ada user terdaftar selain Anda.</p>`;
+        return;
+      }
+
+      let tableRows = usersDataList.map((u, idx) => {
+        const isSelf = currentUser && currentUser.id === u.id;
+        const badgeColor = u.role === 'Super Admin' ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-blue-100 text-blue-800 border-blue-200';
+        return `
+          <tr class="hover:bg-slate-50 transition border-b border-gray-100">
+            <td class="px-4 py-3 text-center font-medium text-gray-500">${idx + 1}</td>
+            <td class="px-4 py-3 font-bold text-gray-800 flex items-center gap-1.5">
+               ${sanitizeHTML(u.username)} 
+               ${isSelf ? '<span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">Anda</span>' : ''}
+            </td>
+            <td class="px-4 py-3"><span class="${badgeColor} text-xs px-2.5 py-1 rounded-full border font-semibold">${sanitizeHTML(u.role)}</span></td>
+            <td class="px-4 py-3 text-right space-x-1">
+              <button onclick="openModal('EditUser', null, null, null, '${u.id}')" class="p-1.5 text-amber-600 hover:bg-amber-100 rounded bg-amber-50" title="Edit Data & Password"><i data-lucide="edit" class="w-4 h-4"></i></button>
+              ${isSelf ? '' : `<button onclick="openModal('HapusUser', null, null, null, '${u.id}')" class="p-1.5 text-red-600 hover:bg-red-100 rounded bg-red-50" title="Hapus Akun"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      let cardsHtml = usersDataList.map((u) => {
+        const isSelf = currentUser && currentUser.id === u.id;
+        const badgeColor = u.role === 'Super Admin' ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-blue-100 text-blue-800 border-blue-200';
+        return `
+          <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+            <div>
+              <h4 class="font-bold text-gray-800 text-base flex items-center gap-1.5">
+                ${sanitizeHTML(u.username)} 
+                ${isSelf ? '<span class="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">Anda</span>' : ''}
+              </h4>
+              <div class="mt-1.5"><span class="${badgeColor} text-[10px] px-2 py-0.5 rounded border font-semibold">${sanitizeHTML(u.role)}</span></div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="openModal('EditUser', null, null, null, '${u.id}')" class="p-2 text-amber-600 hover:bg-amber-100 rounded bg-amber-50"><i data-lucide="edit" class="w-4 h-4"></i></button>
+              ${isSelf ? '' : `<button onclick="openModal('HapusUser', null, null, null, '${u.id}')" class="p-2 text-red-600 hover:bg-red-100 rounded bg-red-50"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <div class="hidden md:block overflow-x-auto border border-gray-200 rounded-2xl bg-white shadow-sm">
+          <table class="w-full text-sm text-left border-collapse">
+            <thead class="bg-gray-50 text-gray-500 uppercase text-xs border-b border-gray-200">
+              <tr>
+                <th class="px-4 py-3 w-12 text-center">No</th>
+                <th class="px-4 py-3">Username</th>
+                <th class="px-4 py-3">Peran Akses (Role)</th>
+                <th class="px-4 py-3 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              ${tableRows}
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="grid grid-cols-1 gap-3 md:hidden">
+          ${cardsHtml}
+        </div>
+      `;
+      lucide.createIcons();
+    }
+
+    // --- MODAL CONTROLLER UTAMA ---
+    function openModal(type, pId = null, bId = null, extraData = null, itemId = null) {
+      modalState = { type, parentId: pId, parentBoxId: bId, itemId: itemId, parentName: '' };
+      
+      const container = document.getElementById('modal-container');
+      const title = document.getElementById('modal-title');
+      const body = document.getElementById('modal-body');
+      const footer = document.getElementById('modal-footer');
+      const saveBtn = document.getElementById('modal-save-btn');
+      
+      saveBtn.disabled = false;
+      container.classList.remove('hidden-el');
+      footer.classList.remove('hidden-el');
+      
+      let item = null, p = null, b = null;
+      
+      if (pId) p = warehouseData.find(x => x.id === pId);
+      if (bId) {
+         if (p) b = p.boxes.find(x => x.id === bId);
+         else {
+            for (const pal of warehouseData) {
+               const fBox = pal.boxes.find(x => x.id === bId);
+               if (fBox) { p = pal; b = fBox; break; }
+            }
+         }
+      }
+      if (b && itemId) item = b.items.find(x => x.id === itemId);
+      
+      modalState.itemData = item;
+      if (p && b) modalState.parentName = `${p.name} > ${b.name}`;
+
+      if(type === 'ScanResi') {
+        title.innerHTML = `<i data-lucide="scan" class="w-5 h-5 text-indigo-500"></i> Scan Resi (Kamera)`;
+        footer.classList.add('hidden-el');
+        body.innerHTML = `<div class="p-4 flex flex-col items-center"><div id="qr-reader" class="w-full max-w-sm rounded-xl overflow-hidden mb-2 bg-black min-h-[150px]"></div><p class="text-xs text-center text-gray-500 mt-2">Arahkan barcode resi ke kamera</p></div>`;
+        setTimeout(() => startResiScanner(), 100);
+      }
+      else if (type === 'BoxSettings') {
+        title.innerHTML = `<i data-lucide="settings" class="w-5 h-5 text-slate-600"></i> Pengaturan Box`;
+        footer.classList.add('hidden-el'); 
+        body.innerHTML = `
+          <div class="p-4 md:p-6 bg-slate-50">
+            <h4 class="text-center font-bold text-lg text-slate-800 mb-1">${b ? sanitizeHTML(b.name) : ''}</h4>
+            <p class="text-center text-xs text-slate-500 mb-5">Berada di: ${p ? sanitizeHTML(p.name) : ''} &bull; Total: ${b ? b.items.length : 0} Item</p>
             
-            if(dateMatch && dateMatch[1]) {
-                shipDate = dateMatch[1].trim();
-            } else {
-                // Cari angka mirip format DD/MM/YYYY
-                const fallbackDate = /([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})/;
-                const fbDateMatch = text.match(fallbackDate);
-                if(fbDateMatch && fbDateMatch[1]) shipDate = fbDateMatch[1];
-            }
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <button onclick="moveBoxOrder('${pId}', '${bId}', -1); closeModal();" class="flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl hover:bg-blue-50 transition-all shadow-sm text-slate-700">
+                <div class="bg-slate-100 p-2 rounded-full"><i data-lucide="arrow-up" class="w-5 h-5 text-slate-600"></i></div>
+                <span class="text-xs font-bold text-center">Geser ke Atas</span>
+              </button>
+              <button onclick="moveBoxOrder('${pId}', '${bId}', 1); closeModal();" class="flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl hover:bg-blue-50 transition-all shadow-sm text-slate-700">
+                <div class="bg-slate-100 p-2 rounded-full"><i data-lucide="arrow-down" class="w-5 h-5 text-slate-600"></i></div>
+                <span class="text-xs font-bold text-center">Geser ke Bawah</span>
+              </button>
+            </div>
 
-            document.getElementById('orderNumberInput').value = orderNo || "Tidak ditemukan";
-            document.getElementById('shipmentDateInput').value = shipDate || "Tidak ditemukan";
+            <div class="space-y-3">
+              <button onclick="openModal('PindahBox', '${pId}', '${bId}')" class="w-full flex items-center gap-3 p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 transition-all shadow-sm text-slate-700 group">
+                <div class="bg-blue-50 group-hover:bg-blue-100 p-2 rounded-full text-blue-600 transition-colors"><i data-lucide="folder-output" class="w-5 h-5"></i></div>
+                <div class="text-left"><span class="block text-sm font-bold text-slate-800">Pindah Palet (Massal)</span><span class="block text-xs text-slate-500 font-normal">Pindahkan seluruh isi box ke palet lain</span></div>
+              </button>
+              
+              <button onclick="openModal('EditBox', '${pId}', '${bId}')" class="w-full flex items-center gap-3 p-4 bg-white border border-slate-200 rounded-xl hover:border-amber-300 transition-all shadow-sm text-slate-700 group">
+                <div class="bg-amber-50 group-hover:bg-amber-100 p-2 rounded-full text-amber-600 transition-colors"><i data-lucide="edit-3" class="w-5 h-5"></i></div>
+                <div class="text-left"><span class="block text-sm font-bold text-slate-800">Ubah Nama Box</span><span class="block text-xs text-slate-500 font-normal">Edit atau koreksi nama box ini</span></div>
+              </button>
+
+              <button onclick="openModal('QR', '${pId}', '${bId}')" class="w-full flex items-center gap-3 p-4 bg-white border border-slate-200 rounded-xl hover:border-slate-300 transition-all shadow-sm text-slate-700 group">
+                <div class="bg-slate-100 group-hover:bg-slate-200 p-2 rounded-full text-slate-700 transition-colors"><i data-lucide="qr-code" class="w-5 h-5"></i></div>
+                <div class="text-left"><span class="block text-sm font-bold text-slate-800">Cetak Label QR</span><span class="block text-xs text-slate-500 font-normal">Cetak stiker barcode untuk fisik box</span></div>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+      else if (type === 'HapusResi') {
+        const resiItem = currentManifestDraft.find(x => x.id === itemId);
+        title.innerHTML = `<i data-lucide="alert-triangle" class="w-5 h-5 text-red-500"></i> Hapus Resi`;
+        saveBtn.className = "w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl flex items-center justify-center gap-2";
+        saveBtn.innerHTML = `<i data-lucide="trash" class="w-4 h-4"></i> Hapus dari Daftar`;
+        body.innerHTML = `
+          <div class="p-4 md:p-6">
+            <div class="p-3 md:p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 text-sm">
+              Keluarkan resi <strong>${resiItem ? sanitizeHTML(resiItem.resi) : ''}</strong> dari daftar serah terima?
+            </div>
+          </div>
+        `;
+      }
+      else if (type === 'EditBox') {
+        title.innerHTML = `<i data-lucide="edit-3" class="w-5 h-5 text-amber-500"></i> Ubah Nama Box`;
+        saveBtn.className = "w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl flex items-center justify-center gap-2";
+        saveBtn.innerHTML = `<i data-lucide="check-circle-2" class="w-4 h-4"></i> Simpan Nama`;
+        body.innerHTML = `
+          <div class="p-4 md:p-6 space-y-4">
+            <div>
+              <label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">Nama Box Baru</label>
+              <input id="input-box-name" type="text" value="${b ? sanitizeHTML(b.name) : ''}" class="w-full border border-gray-300 rounded-xl p-2.5 text-sm focus:border-amber-500 outline-none" placeholder="Contoh: BOX-A1" />
+            </div>
+          </div>
+        `;
+      }
+      else if (type === 'PindahBox') {
+        title.innerHTML = `<i data-lucide="folder-output" class="w-5 h-5 text-blue-500"></i> Pindah Palet (Massal)`;
+        saveBtn.className = "w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl flex items-center justify-center gap-2";
+        saveBtn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Pindahkan Box`;
+        
+        let pOptions = `<option value="">-- Pilih Palet Tujuan --</option>` + 
+                       warehouseData.filter(pal => pal.id !== pId).map(pal => `<option value="${pal.id}">${sanitizeHTML(pal.name)}</option>`).join('');
+        body.innerHTML = `
+          <div class="p-4 md:p-6 space-y-4">
+            <div class="p-3 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 text-xs md:text-sm">
+              Anda akan memindahkan <strong>${b ? sanitizeHTML(b.name) : 'Box'}</strong> beserta <strong>${b ? b.items.length : 0} Item</strong> di dalamnya ke palet lain.
+            </div>
+            <div>
+              <label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">Palet Tujuan</label>
+              <select id="select-target-pallet" class="w-full border border-gray-300 rounded-xl p-2.5 outline-none bg-gray-50 text-sm focus:border-blue-500">
+                ${pOptions}
+              </select>
+            </div>
+          </div>
+        `;
+      }
+      // UPDATE 1: PENGGANTIAN LOGIKA MENJADI KARTU STOK SAAT DIKLIK EDIT
+      else if (['Palet', 'Box', 'Barang'].includes(type)) {
+        title.innerHTML = `<i data-lucide="edit" class="w-5 h-5 text-emerald-500"></i> Tambah ${type}`;
+        saveBtn.className = "w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl flex items-center justify-center gap-2";
+        saveBtn.innerHTML = `<i data-lucide="check-circle-2" class="w-4 h-4"></i> Simpan`;
+        body.innerHTML = `
+          <div class="p-4 md:p-6 space-y-4">
+            ${type === 'Barang' ? `
+              <div><label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">Kode Barang</label><input id="input-code" type="text" value="${item ? sanitizeHTML(item.itemCode) : ''}" class="w-full border border-gray-300 rounded-xl p-2.5 text-sm focus:border-blue-500 outline-none" placeholder="BRG-001" /></div>
+            ` : ''}
+            <div><label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">${type === 'Barang' ? 'Nama Artikel' : `Nama ${type}`}</label><input id="input-name" type="text" value="${item ? sanitizeHTML(item.name) : ''}" class="w-full border border-gray-300 rounded-xl p-2.5 text-sm focus:border-blue-500 outline-none" placeholder="Ketik nama..." /></div>
+            ${type === 'Barang' ? `
+              <div><label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">Jumlah Awal (Pcs)</label><input id="input-qty" type="number" value="${item ? item.qty : ''}" class="w-full border border-gray-300 rounded-xl p-2.5 text-sm focus:border-blue-500 outline-none" placeholder="50" /></div>
+            ` : ''}
+          </div>
+        `;
+      } 
+      else if (type === 'Edit') {
+        title.innerHTML = `<i data-lucide="clipboard-list" class="w-5 h-5 text-emerald-500"></i> Kartu Stok: ${item ? sanitizeHTML(item.itemCode) : ''}`;
+        
+        // Sembunyikan footer default karena tombol simpan ada di dalam body
+        footer.classList.add('hidden-el');
+        
+        let historyHtml = '';
+        if (!item || !item.history || item.history.length === 0) {
+            historyHtml = `<div class="text-center p-4 text-xs text-gray-400 italic border border-dashed border-gray-200 rounded-xl bg-white">Belum ada riwayat mutasi stok.</div>`;
+        } else {
+            let sortedHistory = [...item.history].reverse(); // Urutkan dari yang terbaru
+            historyHtml = `
+                <div class="overflow-x-auto custom-scrollbar bg-white rounded-xl border border-gray-200 shadow-sm max-h-48 overflow-y-auto">
+                    <table class="w-full text-left text-xs whitespace-nowrap">
+                        <thead class="bg-gray-50 text-gray-500 border-b border-gray-100 sticky top-0">
+                            <tr><th class="px-3 py-2">Waktu</th><th class="px-3 py-2 text-center">Tipe</th><th class="px-3 py-2 text-right">Qty</th><th class="px-3 py-2">Alasan</th><th class="px-3 py-2">User</th></tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-50">
+                            ${sortedHistory.map(h => `
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-3 py-2 text-gray-500">${sanitizeHTML(h.date)}</td>
+                                    <td class="px-3 py-2 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${h.type === 'IN' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}">${h.type === 'IN' ? 'MASUK' : 'KELUAR'}</span></td>
+                                    <td class="px-3 py-2 text-right font-bold ${h.type === 'IN' ? 'text-emerald-600' : 'text-red-600'}">${h.type === 'IN' ? '+' : '-'}${h.qty}</td>
+                                    <td class="px-3 py-2 text-gray-700 truncate max-w-[120px]">${sanitizeHTML(h.reason)}</td>
+                                    <td class="px-3 py-2 text-gray-500"><i data-lucide="user" class="w-3 h-3 inline mr-1"></i>${sanitizeHTML(h.user)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
         }
 
-        // --- EKSPOR KE PDF ---
-        function saveAsPDF() {
-            if (scannedPages.length === 0) return;
+        body.innerHTML = `
+          <div class="p-4 md:p-6 bg-slate-50 flex flex-col gap-5">
+            <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <h4 class="font-extrabold text-gray-800 text-sm md:text-base leading-tight">${item ? sanitizeHTML(item.name) : ''}</h4>
+                    <p class="text-[10px] md:text-xs font-bold text-gray-400 mt-1 tracking-wider uppercase">BOX: ${b ? sanitizeHTML(b.name) : ''}</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-gray-400 mb-0.5 font-bold uppercase tracking-wider">Total Stok</p>
+                    <span class="text-xl md:text-2xl font-black text-blue-600">${item ? item.qty : 0} <span class="text-xs text-gray-500 font-medium">Pcs</span></span>
+                </div>
+            </div>
 
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('p', 'mm', 'a4');
-            
-            // Dimensi A4 dalam milimeter
-            const pdfWidth = 210;
-            const pdfHeight = 297;
+            <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                <h5 class="text-xs font-bold text-gray-700 flex items-center gap-1.5"><i data-lucide="settings-2" class="w-4 h-4 text-blue-500"></i> Mutasi Stok Cepat</h5>
+                <div class="flex gap-2">
+                    <select id="adjust-type" class="w-1/3 border border-gray-300 rounded-lg p-2 text-xs md:text-sm font-bold focus:border-blue-500 outline-none bg-gray-50 text-gray-700">
+                        <option value="IN">MASUK (+)</option>
+                        <option value="OUT">KELUAR (-)</option>
+                    </select>
+                    <input id="adjust-qty" type="number" min="1" placeholder="Jml (Pcs)" class="w-1/3 border border-gray-300 rounded-lg p-2 text-xs md:text-sm focus:border-blue-500 outline-none font-bold" />
+                    <input id="adjust-reason" type="text" placeholder="Alasan..." class="w-1/3 border border-gray-300 rounded-lg p-2 text-xs md:text-sm focus:border-blue-500 outline-none" autocomplete="off" />
+                </div>
+                <button onclick="processItemStockAdjustment()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-sm flex justify-center items-center gap-2 shadow-sm transition-colors">
+                    <i data-lucide="save" class="w-4 h-4"></i> Simpan Mutasi
+                </button>
+            </div>
 
-            for(let i = 0; i < scannedPages.length; i++) {
-                if (i > 0) doc.addPage();
-                
-                // Menghitung rasio gambar agar pas proporsional di tengah halaman PDF
-                let imgProps = doc.getImageProperties(scannedPages[i]);
-                let imgRatio = imgProps.width / imgProps.height;
-                let pdfRatio = pdfWidth / pdfHeight;
-                
-                let renderWidth = pdfWidth;
-                let renderHeight = pdfHeight;
-                let x = 0;
-                let y = 0;
+            <div>
+                <h5 class="text-xs font-bold text-gray-700 flex items-center gap-1.5 mb-2"><i data-lucide="history" class="w-4 h-4 text-emerald-500"></i> Riwayat Transaksi Item</h5>
+                ${historyHtml}
+            </div>
+          </div>
+        `;
+      }
+      else if (type === 'Hapus') {
+        title.innerHTML = `<i data-lucide="alert-triangle" class="w-5 h-5 text-red-500"></i> Hapus Barang`;
+        saveBtn.className = "w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl flex items-center justify-center gap-2";
+        saveBtn.innerHTML = `<i data-lucide="trash" class="w-4 h-4"></i> Konfirmasi Hapus`;
+        body.innerHTML = `
+          <div class="p-4 md:p-6 space-y-4">
+            <div class="p-3 md:p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 text-xs md:text-sm">
+              Yakin menghapus <strong>${item ? item.qty : 0} Pcs ${item ? sanitizeHTML(item.name) : 'Barang'}</strong>?
+            </div>
+            <div><label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">Alasan (Wajib)</label><input id="input-reason" type="text" class="w-full border-2 border-red-200 rounded-xl p-2.5 text-sm focus:border-red-500 outline-none" placeholder="Barang rusak" /></div>
+          </div>
+        `;
+      }
+      else if (type === 'Pindah') {
+        title.innerHTML = `<i data-lucide="arrow-right-left" class="w-5 h-5 text-blue-500"></i> Pindah Barang`;
+        saveBtn.className = "w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl flex items-center justify-center gap-2";
+        saveBtn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Pindahkan`;
+        let pOptions = `<option value="">-- Palet --</option>` + warehouseData.map(pal => `<option value="${pal.id}">${sanitizeHTML(pal.name)}</option>`).join('');
+        body.innerHTML = `
+          <div class="p-4 md:p-6 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+              <div><label class="block text-[10px] md:text-xs font-bold text-gray-500 mb-1">PALET TUJUAN</label><select id="select-pallet" onchange="updateBoxSelect()" class="w-full border border-gray-300 rounded-xl p-2 md:p-2.5 outline-none bg-gray-50 text-xs md:text-sm">${pOptions}</select></div>
+              <div><label class="block text-[10px] md:text-xs font-bold text-gray-500 mb-1">BOX TUJUAN</label><select id="select-box" class="w-full border border-gray-300 rounded-xl p-2 md:p-2.5 outline-none bg-gray-50 text-xs md:text-sm"><option value="">-- Box --</option></select></div>
+            </div>
+            <div><label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">Jumlah Pindah (Pcs)</label><input id="input-qty" type="number" max="${item ? item.qty : 0}" value="${item ? item.qty : 0}" class="w-full border border-gray-300 rounded-xl p-2.5 text-sm outline-none font-bold" /><p class="text-[10px] md:text-xs text-gray-500 mt-1">Maks: ${item ? item.qty : 0} Pcs</p></div>
+          </div>
+        `;
+      }
+      else if (type === 'Foto') {
+        title.innerHTML = `<i data-lucide="camera" class="w-5 h-5 text-indigo-500"></i> Foto: ${item ? sanitizeHTML(item.name) : 'Barang'}`;
+        
+        if (item && item.photoUrl) {
+          saveBtn.className = "w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl flex items-center justify-center gap-2";
+          saveBtn.innerHTML = `<i data-lucide="trash" class="w-4 h-4"></i> Hapus Foto`;
+          body.innerHTML = `
+            <div class="p-6 flex flex-col items-center">
+              <img src="${getSafeDriveUrl(item.photoUrl, true)}" onerror="this.src='https://placehold.co/400x300?text=Gambar+Rusak+atau+Dihapus'" alt="Foto ${sanitizeHTML(item.name)}" class="w-full max-w-sm rounded-xl border border-gray-200 shadow-sm mb-4 object-contain max-h-64 bg-gray-50">
+              <p class="text-xs text-gray-500 text-center bg-gray-50 p-2 rounded-lg border border-gray-100">Gambar ini telah tersimpan aman di Google Drive.</p>
+            </div>
+          `;
+        } else {
+          saveBtn.className = "w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl flex items-center justify-center gap-2";
+          saveBtn.innerHTML = `<i data-lucide="upload-cloud" class="w-4 h-4"></i> Simpan & Upload`;
+          body.innerHTML = `
+            <div class="p-4 md:p-6">
+              <div class="w-full h-48 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center justify-center bg-indigo-50/50 relative overflow-hidden transition-all hover:bg-indigo-50 cursor-pointer" onclick="document.getElementById('input-photo-file').click()">
+                <i data-lucide="image-plus" class="w-10 h-10 text-indigo-400 mb-2"></i>
+                <p class="text-sm text-indigo-600 font-medium">Klik untuk Pilih Foto atau Buka Kamera</p>
+                <img id="photo-preview" class="absolute inset-0 w-full h-full object-cover hidden-el z-10">
+                <input type="file" id="input-photo-file" accept="image/*" capture="environment" class="hidden-el" onchange="previewPhoto(this)">
+              </div>
+            </div>
+          `;
+        }
+      }
+      else if (type === 'QR') {
+        const currentUrl = window.location.origin + window.location.pathname;
+        const scanUrl = currentUrl + '?scan=' + bId;
+        const encodedUrl = encodeURIComponent(scanUrl);
+        const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedUrl}`;
 
-                // Fit to Page Logic (Mencegah gambar gepeng jika rasio crop melenceng dari A4)
-                if (imgRatio > pdfRatio) {
-                    // Gambar terlalu lebar
-                    renderHeight = pdfWidth / imgRatio;
-                    y = (pdfHeight - renderHeight) / 2;
+        title.innerHTML = `<i data-lucide="qr-code" class="w-5 h-5 text-gray-700"></i> Cetak Label QR`;
+        footer.classList.add('hidden-el');
+        body.innerHTML = `
+          <div class="p-6 md:p-8 flex flex-col items-center justify-center">
+            <div class="p-3 md:p-4 bg-white border border-gray-200 rounded-xl shadow-sm mb-4">
+               <img src="${qrImgUrl}" alt="QR" class="w-32 h-32 md:w-48 md:h-48" />
+            </div>
+            <p class="text-[10px] md:text-xs text-center text-gray-500 mb-4 px-2 md:px-4 break-all bg-gray-50 p-2 rounded border border-gray-100 w-full">Link: ${scanUrl}</p>
+            <button onclick="printQRLabel('${qrImgUrl}', '${b ? sanitizeHTML(b.name) : 'Box'}')" class="w-full py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium text-sm md:text-base flex items-center justify-center gap-2 shadow-md">
+               <i data-lucide="printer" class="w-5 h-5"></i> Cetak Label Fisik
+            </button>
+          </div>
+        `;
+      }
+      else if (type === 'Scan') {
+        title.innerHTML = `<i data-lucide="maximize" class="w-5 h-5 text-blue-600"></i> Pemindai Internal`;
+        footer.classList.add('hidden-el');
+        body.innerHTML = `
+          <div class="p-4 md:p-6 flex flex-col items-center bg-slate-50">
+            <div class="relative w-full max-w-sm bg-black rounded-2xl overflow-hidden shadow-xl flex items-center justify-center min-h-[250px] md:min-h-[300px] border border-slate-300">
+              <div id="qr-reader" class="w-full absolute inset-0 !border-none"></div>
+              <div class="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center shadow-[0_0_0_4000px_rgba(0,0,0,0.45)]">
+                 <div id="scanner-loading" class="absolute flex flex-col items-center text-white/50 z-0">
+                    <i data-lucide="camera" class="w-8 h-8 mb-2 animate-pulse"></i>
+                    <p class="text-xs tracking-widest uppercase">MENGAKSES KAMERA</p>
+                 </div>
+                 <div class="relative w-[200px] h-[200px] border border-white/20 rounded-2xl flex items-center justify-center z-20">
+                    <div class="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-2xl"></div>
+                    <div class="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-2xl"></div>
+                    <div class="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-blue-500 rounded-bl-2xl"></div>
+                    <div class="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-blue-500 rounded-br-2xl"></div>
+                    <div class="w-[90%] h-0.5 bg-blue-500 absolute shadow-[0_0_8px_2px_rgba(59,130,246,0.6)] animate-scanline"></div>
+                 </div>
+              </div>
+            </div>
+            <div class="mt-5 w-full bg-blue-50/80 p-4 rounded-xl border border-blue-100 flex items-start gap-3 shadow-sm">
+                <div class="bg-white text-blue-600 p-2 rounded-full border border-blue-100 shadow-sm flex-shrink-0"><i data-lucide="info" class="w-5 h-5"></i></div>
+                <div>
+                    <h4 class="text-sm font-bold text-blue-900">Cara Penggunaan</h4>
+                    <p class="text-xs text-blue-700 mt-0.5 leading-relaxed">Arahkan kotak pemindai tepat pada QR Code yang tertempel di Box Gudang untuk melihat isinya.</p>
+                </div>
+            </div>
+          </div>
+        `;
+        setTimeout(() => startScanner(), 100);
+      }
+      // UPDATE 2: PENAMBAHAN TOMBOL EDIT STOK DI TABEL HASIL SCAN INTERNAL
+      else if (type === 'ScanResult') {
+        title.innerHTML = `<i data-lucide="scan-line" class="w-5 h-5 text-indigo-500"></i> Informasi Hasil Scan`;
+        footer.classList.remove('hidden-el');
+        saveBtn.className = "px-5 py-2.5 text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center gap-2 border border-gray-300";
+        saveBtn.innerHTML = `<i data-lucide="home" class="w-4 h-4"></i> Tutup & Ke Gudang`;
+        
+        let itemsHtml = '';
+        if (b && b.items.length === 0) {
+          itemsHtml = `<p class="text-center text-gray-500 italic py-6 bg-white rounded-lg border border-gray-100">Box ini sedang kosong.</p>`;
+        } else if (b) {
+          itemsHtml = `
+            <table class="w-full text-sm text-left border border-gray-200 rounded-lg overflow-hidden bg-white">
+              <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
+                <tr><th class="px-3 py-3">ID Barang</th><th class="px-3 py-3">Artikel</th><th class="px-3 py-3 text-center">Foto</th><th class="px-3 py-3 text-right">Jumlah</th><th class="px-3 py-3 text-center">Aksi</th></tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                ${b.items.map(i => `
+                  <tr>
+                    <td class="px-3 py-3 font-mono text-xs text-gray-500">${sanitizeHTML(i.itemCode)}</td>
+                    <td class="px-3 py-3 font-medium text-gray-800">${sanitizeHTML(i.name)}</td>
+                    <td class="px-3 py-3 text-center">${i.photoUrl ? `<a href="${getSafeDriveUrl(i.photoUrl)}" target="_blank" class="text-indigo-600 hover:text-indigo-800 underline text-xs font-bold">Lihat</a>` : '-'}</td>
+                    <td class="px-3 py-3 text-right font-bold text-indigo-600">${i.qty} Pcs</td>
+                    <td class="px-3 py-3 text-center">
+                        <button onclick="openModal('Edit', '${pId}', '${bId}', null, '${i.id}')" class="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg font-bold text-xs flex items-center justify-center gap-1 mx-auto border border-emerald-200 transition-colors">
+                            <i data-lucide="edit" class="w-3.5 h-3.5"></i> Edit Stok
+                        </button>
+                    </td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+
+        body.innerHTML = `
+          <div class="p-6 space-y-5 bg-gray-50/50">
+            <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex items-start gap-4 shadow-sm">
+               <div class="p-3 bg-indigo-100 rounded-xl text-indigo-600"><i data-lucide="package" class="w-8 h-8"></i></div>
+               <div>
+                 <h4 class="font-bold text-gray-800 text-xl">${b ? sanitizeHTML(b.name) : ''}</h4>
+                 <p class="text-sm text-gray-600 mt-0.5">Lokasi Utama: <span class="font-semibold">${p ? sanitizeHTML(p.name) : ''}</span></p>
+                 <span class="inline-block px-2 py-1 bg-white rounded border border-indigo-100 text-xs text-indigo-600 font-bold mt-2">${b ? b.items.length : 0} Jenis Barang</span>
+               </div>
+            </div>
+            <div>
+               <h5 class="font-bold text-gray-700 mb-3 ml-1 flex items-center gap-2"><i data-lucide="list" class="w-4 h-4"></i> Daftar Isi Box:</h5>
+               ${itemsHtml}
+            </div>
+          </div>
+        `;
+      }
+      
+      else if (type === 'TambahUser') {
+        title.innerHTML = `<i data-lucide="user-plus" class="w-5 h-5 text-emerald-500"></i> Tambah User Baru`;
+        saveBtn.className = "w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl flex items-center justify-center gap-2";
+        saveBtn.innerHTML = `<i data-lucide="check-circle-2" class="w-4 h-4"></i> Buat User Baru`;
+        body.innerHTML = `
+          <div class="p-4 md:p-6 space-y-4">
+            <div>
+              <label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">Username / ID Login</label>
+              <input id="user-input-username" type="text" class="w-full border border-gray-300 rounded-xl p-2.5 text-sm outline-none focus:border-emerald-500 uppercase font-bold" placeholder="Ketik username baru..." autocomplete="off">
+            </div>
+            <div>
+              <label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">Sandi / Password</label>
+              <input id="user-input-password" type="password" class="w-full border border-gray-300 rounded-xl p-2.5 text-sm outline-none focus:border-emerald-500" placeholder="••••••••">
+            </div>
+            <div>
+              <label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">Peran Akses (Role)</label>
+              <select id="user-input-role" class="w-full border border-gray-300 rounded-xl p-2.5 outline-none bg-gray-50 text-sm focus:border-emerald-500">
+                <option value="Admin">Admin (Hanya Kelola Gudang & Manifest)</option>
+                <option value="Super Admin">Super Admin (Akses Penuh + Buat User)</option>
+              </select>
+            </div>
+          </div>
+        `;
+      }
+      else if (type === 'EditUser') {
+        const targetUser = usersDataList.find(u => u.id === itemId);
+        title.innerHTML = `<i data-lucide="user-cog" class="w-5 h-5 text-amber-500"></i> Ubah Data Petugas`;
+        saveBtn.className = "w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl flex items-center justify-center gap-2";
+        saveBtn.innerHTML = `<i data-lucide="check-circle-2" class="w-4 h-4"></i> Simpan Perubahan`;
+        body.innerHTML = `
+          <div class="p-4 md:p-6 space-y-4">
+            <div>
+              <label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">Username</label>
+              <input id="user-input-username" type="text" value="${targetUser ? sanitizeHTML(targetUser.username) : ''}" class="w-full border border-gray-300 rounded-xl p-2.5 text-sm outline-none bg-gray-100 cursor-not-allowed font-bold" readonly autocomplete="off">
+            </div>
+            <div>
+              <label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">Ubah Password Baru <span class="text-[10px] text-gray-400 font-normal">(Kosongkan jika tidak diganti)</span></label>
+              <input id="user-input-password" type="password" class="w-full border border-gray-300 rounded-xl p-2.5 text-sm outline-none focus:border-amber-500" placeholder="Tulis password baru...">
+            </div>
+            <div>
+              <label class="block text-xs md:text-sm font-bold text-gray-700 mb-1">Peran Akses (Role)</label>
+              <select id="user-input-role" class="w-full border border-gray-300 rounded-xl p-2.5 outline-none bg-gray-50 text-sm focus:border-amber-500">
+                <option value="Admin" ${targetUser && targetUser.role === 'Admin' ? 'selected' : ''}>Admin</option>
+                <option value="Super Admin" ${targetUser && targetUser.role === 'Super Admin' ? 'selected' : ''}>Super Admin</option>
+              </select>
+            </div>
+          </div>
+        `;
+      }
+      else if (type === 'HapusUser') {
+        const targetUser = usersDataList.find(u => u.id === itemId);
+        title.innerHTML = `<i data-lucide="user-minus" class="w-5 h-5 text-red-500"></i> Hapus Akun Petugas`;
+        saveBtn.className = "w-full sm:w-auto px-5 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl flex items-center justify-center gap-2";
+        saveBtn.innerHTML = `<i data-lucide="trash-2" class="w-4 h-4"></i> Hapus Permanen`;
+        body.innerHTML = `
+          <div class="p-4 md:p-6">
+            <div class="p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 text-sm">
+              Apakah Anda benar-benar yakin ingin menghapus akun petugas <strong>${targetUser ? sanitizeHTML(targetUser.username) : ''}</strong>? Petugas ini tidak akan bisa login lagi ke sistem.
+            </div>
+          </div>
+        `;
+      }
+
+      lucide.createIcons();
+    }
+
+    window.updateBoxSelect = () => {
+      const pId = document.getElementById('select-pallet').value;
+      const boxSelect = document.getElementById('select-box');
+      if (!pId) { boxSelect.innerHTML = `<option value="">-- Box --</option>`; return; }
+      const p = warehouseData.find(x => x.id === pId);
+      if (p) boxSelect.innerHTML = `<option value="">-- Box --</option>` + p.boxes.map(b => `<option value="${b.id}">${sanitizeHTML(b.name)}</option>`).join('');
+    };
+
+    window.previewPhoto = (input) => {
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+           const preview = document.getElementById('photo-preview');
+           preview.src = e.target.result;
+           preview.classList.remove('hidden-el');
+        }
+        reader.readAsDataURL(input.files[0]);
+      }
+    };
+
+    function closeModal() { 
+      document.getElementById('modal-container').classList.add('hidden-el'); 
+      stopScanner(); 
+    }
+
+    function addLogRecord(action, details, location) {
+      const userName = currentUser ? currentUser.username : 'Sistem';
+      historyLog.unshift({
+        id: 'l' + Date.now(),
+        timestamp: new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        user: userName, action, details, location
+      });
+    }
+
+    async function saveModalData() {
+      const type = modalState.type;
+      
+      if (type === 'ScanResult') {
+        window.history.replaceState({}, document.title, window.location.pathname);
+        closeModal();
+        navigate('warehouse', true);
+        return;
+      }
+      
+      if (type === 'HapusResi') {
+        currentManifestDraft = currentManifestDraft.filter(item => item.id !== modalState.itemId);
+        renderManifestTable();
+        closeModal();
+        return;
+      }
+      
+      if (type === 'TambahUser' || type === 'EditUser') {
+        const usernameInput = document.getElementById('user-input-username').value.trim().toUpperCase();
+        const passwordInput = document.getElementById('user-input-password').value.trim();
+        const roleInput = document.getElementById('user-input-role').value;
+
+        if (!usernameInput) return showToast("Username wajib diisi!", "error");
+        if (type === 'TambahUser' && !passwordInput) return showToast("Password wajib diisi!", "error");
+
+        const saveBtn = document.getElementById('modal-save-btn');
+        saveBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Memproses...`;
+        saveBtn.disabled = true;
+        lucide.createIcons();
+
+        const payload = {
+          action: 'saveUser',
+          adminUsername: currentUser.username,
+          adminPassword: currentUser.password,
+          userData: {
+            id: type === 'EditUser' ? modalState.itemId : 'u' + Date.now().toString().slice(-6),
+            username: usernameInput,
+            password: passwordInput,
+            role: roleInput
+          }
+        };
+
+        try {
+          const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
+          const result = await response.json();
+
+          if (result.status === 'success') {
+            showToast("Sukses: Data user disimpan di server!", "success");
+            addLogRecord('KELOLA USER', `Berhasil menyimpan/ubah user: ${usernameInput}`, 'Manajemen User');
+            closeModal();
+            fetchUsersList(); 
+          } else {
+            showToast("Gagal: " + result.message, "error");
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = `<i data-lucide="check-circle-2" class="w-4 h-4"></i> Simpan Perubahan`;
+            lucide.createIcons();
+          }
+        } catch(e) {
+          showToast("Kesalahan koneksi saat menyimpan user.", "error");
+          saveBtn.disabled = false;
+        }
+        return;
+      }
+
+      if (type === 'HapusUser') {
+        const saveBtn = document.getElementById('modal-save-btn');
+        saveBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Memproses...`;
+        saveBtn.disabled = true;
+        lucide.createIcons();
+
+        const payload = {
+          action: 'deleteUser',
+          adminUsername: currentUser.username,
+          adminPassword: currentUser.password,
+          targetUserId: modalState.itemId
+        };
+
+        try {
+          const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
+          const result = await response.json();
+
+          if (result.status === 'success') {
+            showToast("Sukses: Akun berhasil dihapus!", "success");
+            addLogRecord('HAPUS USER', `Menghapus salah satu akun petugas`, 'Manajemen User');
+            closeModal();
+            fetchUsersList(); 
+          } else {
+            showToast("Gagal menghapus: " + result.message, "error");
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = `<i data-lucide="trash-2" class="w-4 h-4"></i> Hapus Permanen`;
+            lucide.createIcons();
+          }
+        } catch(e) {
+          showToast("Kesalahan jaringan.", "error");
+          saveBtn.disabled = false;
+        }
+        return;
+      }
+
+      if (type === 'Foto') {
+        const pId = modalState.parentId;
+        const bId = modalState.parentBoxId;
+        const iId = modalState.itemId;
+        const itemName = modalState.itemData ? modalState.itemData.name : 'Barang';
+        const pName = modalState.parentName;
+
+        const pIdx = warehouseData.findIndex(p => p.id === pId);
+        const bIdx = pIdx >= 0 ? warehouseData[pIdx].boxes.findIndex(b => b.id === bId) : -1;
+        if (pIdx < 0 || bIdx < 0) return showToast("Lokasi barang tidak valid!", "error");
+        
+        const itemIdx = warehouseData[pIdx].boxes[bIdx].items.findIndex(i => i.id === iId);
+        if (itemIdx < 0) return showToast("Barang tidak ditemukan!", "error");
+        
+        const targetItem = warehouseData[pIdx].boxes[bIdx].items[itemIdx];
+
+        if (targetItem.photoUrl) {
+          targetItem.photoUrl = null;
+          addLogRecord('HAPUS FOTO', `Menghapus foto untuk ${itemName}`, pName);
+          closeModal();
+          navigate('warehouse', true);
+          syncToDatabase();
+        } else {
+          const fileInput = document.getElementById('input-photo-file');
+          if (!fileInput.files || fileInput.files.length === 0) return showToast("Pilih foto terlebih dahulu!", "error");
+          
+          const file = fileInput.files[0];
+          const reader = new FileReader();
+          const saveBtn = document.getElementById('modal-save-btn');
+          
+          showToast("Memulai proses upload...", "success");
+          saveBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Mengunggah...`;
+          saveBtn.disabled = true;
+          saveBtn.classList.replace('bg-indigo-600', 'bg-indigo-400'); 
+          lucide.createIcons();
+          
+          reader.onload = function(e) {
+             const img = new Image();
+             img.onload = async function() {
+                const canvas = document.createElement('canvas');
+                const MAX_DIM = 800; 
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                  if (width > MAX_DIM) { height *= MAX_DIM / width; width = MAX_DIM; }
                 } else {
-                    // Gambar terlalu tinggi
-                    renderWidth = pdfHeight * imgRatio;
-                    x = (pdfWidth - renderWidth) / 2;
+                  if (height > MAX_DIM) { width *= MAX_DIM / height; height = MAX_DIM; }
                 }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, width, height);
                 
-                doc.addImage(scannedPages[i], 'JPEG', x, y, renderWidth, renderHeight);
-            }
+                const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+                const base64Data = dataUrl.split(',')[1];
 
-            // Pembuatan Nama File
-            let orderNo = document.getElementById('orderNumberInput').value.trim();
-            let shipDate = document.getElementById('shipmentDateInput').value.trim();
+                try {
+                   const response = await fetch(SCRIPT_URL, {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                     body: JSON.stringify({ 
+                       uploadPhoto: { 
+                         fileName: `FOTO_${targetItem.itemCode}_${Date.now()}.jpg`, 
+                         mimeType: 'image/jpeg', 
+                         base64: base64Data 
+                       } 
+                     })
+                   });
+                   const result = await response.json();
+                   
+                   if (result.status === 'success') {
+                      const cP = warehouseData.findIndex(p => p.id === pId);
+                      const cB = cP >= 0 ? warehouseData[cP].boxes.findIndex(b => b.id === bId) : -1;
+                      const cI = cB >= 0 ? warehouseData[cP].boxes[cB].items.findIndex(i => i.id === iId) : -1;
+                      
+                      if(cP >= 0 && cB >= 0 && cI >= 0) {
+                          warehouseData[cP].boxes[cB].items[cI].photoUrl = result.photoUrl;
+                      }
 
-            if (!orderNo || orderNo === "Tidak ditemukan") orderNo = "Arsip";
-            if (!shipDate || shipDate === "Tidak ditemukan") shipDate = "Dokumen";
-
-            shipDate = shipDate.replace(/[\/\\]/g, '-');
-            orderNo = orderNo.replace(/[^a-zA-Z0-9\-]/g, '');
-            
-            const newFileName = `${orderNo}_${shipDate}.pdf`;
-            doc.save(newFileName);
+                      addLogRecord('UPLOAD FOTO', `Menambahkan foto untuk ${itemName}`, pName);
+                      closeModal();
+                      navigate('warehouse', true);
+                      syncToDatabase();
+                      showToast("🎉 Foto berhasil diunggah!", "success");
+                   } else {
+                      showToast("Gagal mengunggah: " + result.message, "error");
+                      saveBtn.innerHTML = `<i data-lucide="upload-cloud" class="w-4 h-4"></i> Simpan & Upload`;
+                      saveBtn.disabled = false;
+                      saveBtn.classList.replace('bg-indigo-400', 'bg-indigo-600');
+                      lucide.createIcons();
+                   }
+                } catch (err) {
+                   showToast("Terjadi kesalahan koneksi internet.", "error");
+                   saveBtn.disabled = false;
+                }
+             };
+             img.src = e.target.result;
+          };
+          reader.readAsDataURL(file);
         }
-    </script>
+        return; 
+      }
+
+      const pIdx = warehouseData.findIndex(p => p.id === modalState.parentId);
+      const bIdx = pIdx >= 0 ? warehouseData[pIdx].boxes.findIndex(b => b.id === modalState.parentBoxId) : -1;
+      
+      if (type === 'EditBox') {
+        const newName = document.getElementById('input-box-name').value.trim();
+        if (!newName) return showToast("Nama Box wajib diisi!", "error");
+        
+        const oldName = warehouseData[pIdx].boxes[bIdx].name;
+        warehouseData[pIdx].boxes[bIdx].name = newName;
+        addLogRecord('UBAH NAMA BOX', `Mengubah nama box ${oldName} menjadi ${newName}`, warehouseData[pIdx].name);
+      }
+      else if (type === 'PindahBox') {
+        const targetPalletId = document.getElementById('select-target-pallet').value;
+        if (!targetPalletId) return showToast("Pilih palet tujuan!", "error");
+        
+        const tpIdx = warehouseData.findIndex(p => p.id === targetPalletId);
+        if (tpIdx < 0) return showToast("Palet tujuan tidak ditemukan!", "error");
+
+        const boxToMove = warehouseData[pIdx].boxes.splice(bIdx, 1)[0];
+        warehouseData[tpIdx].boxes.push(boxToMove);
+        
+        addLogRecord('PINDAH BOX MASSAL', `Memindahkan box ${boxToMove.name}`, `Dari ${warehouseData[pIdx].name} ke ${warehouseData[tpIdx].name}`);
+      }
+      // UPDATE 3: LOGIKA EDIT ITEM DIHAPUS DARI SINI (KARENA SUDAH PUNYA FUNGSI SENDIRI)
+      else if (['Palet', 'Box', 'Barang'].includes(type)) {
+        const nameVal = document.getElementById('input-name').value;
+        if (!nameVal) return showToast("Nama wajib diisi!", "error");
+        
+        if (type === 'Palet') {
+          warehouseData.push({ id: 'p' + Date.now().toString().slice(-6), name: nameVal, boxes: [] });
+          addLogRecord('BUAT PALET', `Membuat direktori ${nameVal}`, 'Gudang Utama');
+        } 
+        else if (type === 'Box') {
+          if(pIdx < 0) return showToast("Pilih Palet terlebih dahulu!", "error");
+          warehouseData[pIdx].boxes.push({ id: 'b' + Date.now().toString().slice(-6), name: nameVal, items: [] });
+          addLogRecord('BUAT BOX', `Membuat direktori ${nameVal}`, warehouseData[pIdx].name);
+        }
+        else {
+          const codeVal = document.getElementById('input-code').value;
+          const qtyVal = parseInt(document.getElementById('input-qty').value) || 0;
+          if (!codeVal || qtyVal <= 0) return showToast("Data tidak valid!", "error");
+          if (pIdx < 0 || bIdx < 0) return showToast("Lokasi tidak valid!", "error");
+
+          if (type === 'Barang') {
+            warehouseData[pIdx].boxes[bIdx].items.push({ id: 'i' + Date.now().toString().slice(-6), itemCode: codeVal, name: nameVal, qty: qtyVal, history: [] }); // Menyiapkan array riwayat
+            addLogRecord('TAMBAH BARANG', `Menambahkan ${qtyVal} Pcs ${nameVal}`, `${warehouseData[pIdx].name} > ${warehouseData[pIdx].boxes[bIdx].name}`);
+          }
+        }
+      }
+      else if (type === 'Hapus') {
+        const reason = document.getElementById('input-reason').value;
+        if (!reason) return showToast("Alasan wajib diisi!", "error");
+        if (pIdx < 0 || bIdx < 0) return showToast("Lokasi tidak valid!", "error");
+        
+        const itemIdx = warehouseData[pIdx].boxes[bIdx].items.findIndex(i => i.id === modalState.itemId);
+        warehouseData[pIdx].boxes[bIdx].items.splice(itemIdx, 1);
+        addLogRecord('HAPUS BARANG', `Menghapus ${modalState.itemData.qty} Pcs ${modalState.itemData.name}. Alasan: ${reason}`, modalState.parentName);
+      }
+      else if (type === 'Pindah') {
+        const tPallet = document.getElementById('select-pallet').value;
+        const tBox = document.getElementById('select-box').value;
+        const moveQty = parseInt(document.getElementById('input-qty').value);
+        if (!tPallet || !tBox || moveQty <= 0 || moveQty > modalState.itemData.qty) return showToast("Pilih tujuan dan jumlah yang valid!", "error");
+        if (pIdx < 0 || bIdx < 0) return showToast("Lokasi awal tidak valid!", "error");
+
+        const itemIdx = warehouseData[pIdx].boxes[bIdx].items.findIndex(i => i.id === modalState.itemId);
+        if (moveQty === modalState.itemData.qty) warehouseData[pIdx].boxes[bIdx].items.splice(itemIdx, 1);
+        else warehouseData[pIdx].boxes[bIdx].items[itemIdx].qty -= moveQty;
+
+        const tpIdx = warehouseData.findIndex(p => p.id === tPallet);
+        const tbIdx = warehouseData[tpIdx].boxes.findIndex(b => b.id === tBox);
+        const existItem = warehouseData[tpIdx].boxes[tbIdx].items.find(i => i.itemCode === modalState.itemData.itemCode);
+        
+        if (existItem) existItem.qty += moveQty;
+        else warehouseData[tpIdx].boxes[tbIdx].items.push({ ...modalState.itemData, id: 'i'+Date.now().toString().slice(-6), qty: moveQty });
+
+        addLogRecord('PINDAH BARANG', `Memindahkan ${moveQty} Pcs ${modalState.itemData.name}`, `${warehouseData[tpIdx].name} > ${warehouseData[tpIdx].boxes[tbIdx].name}`);
+      }
+
+      closeModal();
+      navigate('warehouse', true); 
+      syncToDatabase(); 
+    }
+
+    // --- UPDATE 4: FUNGSI BARU UNTUK PROSES PENYESUAIAN KARTU STOK ---
+    window.processItemStockAdjustment = () => {
+        const type = document.getElementById('adjust-type').value;
+        const qty = parseInt(document.getElementById('adjust-qty').value);
+        const reason = document.getElementById('adjust-reason').value.trim();
+        
+        if (!qty || qty <= 0) return showToast("Jumlah barang tidak valid!", "error");
+        if (!reason) return showToast("Alasan mutasi wajib diisi!", "error");
+
+        const pIdx = warehouseData.findIndex(p => p.id === modalState.parentId);
+        const bIdx = pIdx >= 0 ? warehouseData[pIdx].boxes.findIndex(b => b.id === modalState.parentBoxId) : -1;
+        if (pIdx < 0 || bIdx < 0) return showToast("Lokasi barang tidak valid!", "error");
+        
+        const itemIdx = warehouseData[pIdx].boxes[bIdx].items.findIndex(i => i.id === modalState.itemId);
+        if (itemIdx < 0) return showToast("Barang tidak ditemukan!", "error");
+
+        let targetItem = warehouseData[pIdx].boxes[bIdx].items[itemIdx];
+        
+        // Proteksi Barang Keluar (Minus) agar tidak minus di bawah nol
+        if (type === 'OUT' && qty > targetItem.qty) {
+            return showToast("Gagal: Stok tidak mencukupi untuk dikeluarkan!", "error");
+        }
+
+        // 1. Eksekusi Perubahan Stok Utama
+        if (type === 'IN') targetItem.qty += qty;
+        else if (type === 'OUT') targetItem.qty -= qty;
+
+        // 2. Siapkan dan Catat ke Array Kartu Stok (History)
+        if (!targetItem.history) targetItem.history = []; // Buat array riwayat jika belum pernah ada
+        
+        const historyRecord = {
+            date: new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            type: type,
+            qty: qty,
+            reason: reason,
+            user: currentUser ? currentUser.username : 'Admin'
+        };
+        targetItem.history.push(historyRecord); // Simpan ke catatan tabungan barang
+
+        // 3. Catat juga di Log Aktivitas Global (History Log)
+        const actionText = type === 'IN' ? 'STOK MASUK' : 'STOK KELUAR';
+        const detailText = `${type === 'IN' ? 'Menambah' : 'Mengurangi'} ${qty} Pcs ${targetItem.name}. Alasan: ${reason}`;
+        addLogRecord(actionText, detailText, `${warehouseData[pIdx].name} > ${warehouseData[pIdx].boxes[bIdx].name}`);
+
+        // 4. Update Database
+        syncToDatabase();
+        showToast("Mutasi stok berhasil dicatat!", "success");
+        
+        // 5. Muat Ulang Modal secara Instan (Agar tabel riwayat & angka langsung berubah di depan mata Anda)
+        openModal('Edit', modalState.parentId, modalState.parentBoxId, null, modalState.itemId);
+        
+        // 6. Pastikan UI Gudang di latar belakang ikut terupdate
+        navigate('warehouse', true);
+    };
+
+    async function refreshDatabase() {
+      const modal = document.getElementById('modal-container');
+      if (modal && !modal.classList.contains('hidden-el')) return;
+
+      setSyncStatus('Menarik Data...', 'bg-blue-500');
+      try {
+        const response = await fetch(SCRIPT_URL);
+        const data = await response.json();
+        if(data) {
+          currentDbVersion = data.dbVersion || 1; 
+          
+          warehouseData = data.warehouseData || [];
+          historyLog = data.historyLog || [];
+          manifestHistory = data.manifestHistory || [];
+
+          setSyncStatus('Sistem Aktif', 'bg-emerald-500');
+          if(currentUser) {
+             if (activeMenu === 'dashboard') {
+                 document.getElementById('main-content').innerHTML = renderDashboard(true);
+                 setTimeout(initChart, 100);
+             } 
+             else if (activeMenu === 'warehouse') {
+                 const searchInp = document.getElementById('warehouse-search');
+                 const currentSearch = searchInp ? searchInp.value : '';
+                 document.getElementById('main-content').innerHTML = renderWarehouse(true);
+                 if (currentSearch) {
+                     const newSearchInp = document.getElementById('warehouse-search');
+                     if(newSearchInp) { newSearchInp.value = currentSearch; filterWarehouse(); }
+                 }
+             }
+             else if (activeMenu === 'history') document.getElementById('main-content').innerHTML = renderHistory(true);
+             else if (activeMenu === 'users') {
+                 document.getElementById('main-content').innerHTML = renderUsersMenu(true);
+                 fetchUsersList();
+             }
+             lucide.createIcons();
+          }
+        }
+      } catch (err) {
+        setSyncStatus('Mode Offline', 'bg-red-500');
+      }
+    }
+
+    setInterval(() => {
+       if (document.visibilityState === 'visible' && currentUser && SCRIPT_URL) {
+           refreshDatabase(); 
+       }
+    }, 30000); 
+
+    document.addEventListener('visibilitychange', () => {
+       if (document.visibilityState === 'visible' && currentUser && SCRIPT_URL) {
+           refreshDatabase(); 
+       }
+    });
+  </script>
 </body>
 </html>
